@@ -103,6 +103,19 @@ def construir_contexto(analisis: dict) -> str:
     for h in v["hallazgos"]:
         L.append(f"- [{h['severidad']}] {h['mensaje']}")
 
+    # puntaje de salud: ya viene calculado, el modelo solo puede citarlo
+    s = analisis.get("salud") or {}
+    if s.get("disponible"):
+        L.append(f"\n== PUNTAJE DE SALUD FINANCIERA: {s['puntaje']:.1f} de 100 "
+                 f"({s['banda']['nombre']}) ==")
+        L.append(f"Metodologia: {s['metodologia']['formula']}")
+        for d in s["dimensiones"]:
+            if d["evaluable"]:
+                L.append(f"{d['nombre']} (peso {d['peso']:.0f}%): "
+                         f"{d['puntaje']:.1f} de 100")
+        if not s["confiable"]:
+            L.append(f"ADVERTENCIA: {s['advertencia']}")
+
     # indicadores
     L.append("\n== INDICADORES CALCULADOS ==")
     categoria = None

@@ -82,3 +82,35 @@ def test_frontend_se_sirve(cliente):
     r = cliente.get("/")
     assert r.status_code == 200
     assert "Diagn" in r.text
+
+
+def test_el_analisis_trae_el_puntaje_de_salud(cliente, datos):
+    """El puntaje viaja con su metodologia: sin ella el frontend no puede auditarlo."""
+    s = cliente.post("/api/analizar", json=datos).json()["salud"]
+    assert s["disponible"] is True
+    assert 0 <= s["puntaje"] <= 100
+    assert s["banda"]["nombre"] and s["metodologia"]["formula"]
+    for d in s["dimensiones"]:
+        for c in d["criterios"]:
+            assert c["justificacion"] and c["fuente"] and len(c["escala"]) >= 2
+
+
+def test_mejorar_la_cartera_sube_el_puntaje(cliente, datos):
+    """Simulacion: si la cartera baja, el ciclo de caja se acorta y la nota sube.
+
+    Es la prueba de que el puntaje reacciona al negocio y no es decorativo.
+    """
+    base = cliente.post("/api/analizar", json=datos).json()["salud"]["puntaje"]
+
+    mejorado = json.loads(json.dumps(datos))
+    mejorado["balance"]["cuentas_por_cobrar"][1] = 1200
+    nuevo = cliente.post("/api/analizar", json=mejorado).json()["salud"]["puntaje"]
+
+    assert nuevo > base
+
+
+def test_la_ia_recibe_el_puntaje_ya_calculado(cliente):
+    """El modelo no calcula la nota: la lee del contexto, igual que todo lo demas."""
+    ctx = cliente.get("/api/contexto-ia").json()["contexto"]
+    assert "PUNTAJE DE SALUD FINANCIERA" in ctx
+    assert "70% x nivel" in ctx

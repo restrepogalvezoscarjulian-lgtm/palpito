@@ -108,6 +108,67 @@
   .aviso{background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.3);
     border-radius:8px;padding:10px 13px;font-size:12.5px;color:var(--ambar);margin-top:14px}
 
+
+
+  /* puntaje de salud */
+  .salud-cabeza{display:flex;gap:24px;align-items:center;flex-wrap:wrap}
+  .anillo{flex:none;width:132px;height:132px}
+  .anillo .pista{fill:none;stroke:var(--panel2);stroke-width:11}
+  .anillo .arco{fill:none;stroke-width:11;stroke-linecap:round;
+    transform:rotate(-90deg);transform-origin:66px 66px}
+  .anillo .cifra{font-family:var(--mono);font-size:31px;font-weight:700;fill:var(--texto)}
+  .anillo .de{font-family:var(--mono);font-size:11px;fill:var(--tenue)}
+  .salud-resumen{flex:1;min-width:260px}
+  .salud-resumen .banda{font-size:20px;font-weight:600;margin:0 0 6px}
+  .salud-resumen .met{color:var(--tenue);font-size:12.5px;font-family:var(--mono);
+    background:var(--panel2);border-radius:7px;padding:8px 11px;margin-top:10px}
+  .salud-resumen p{margin:0;color:var(--suave);font-size:13.5px}
+
+  .dims{margin-top:22px;border-top:1px solid var(--borde);padding-top:16px}
+  .dim{margin-bottom:15px}
+  .dim .fila1{display:flex;justify-content:space-between;align-items:baseline;
+    gap:10px;font-size:13.5px;margin-bottom:5px}
+  .dim .peso{color:var(--tenue);font-size:11.5px;font-family:var(--mono)}
+  .dim .nota{font-family:var(--mono);font-weight:600;font-size:14px}
+  .dim .riel{height:9px;background:var(--panel2);border-radius:5px;overflow:hidden}
+  .dim .relleno{height:100%;border-radius:5px}
+  .dim .aporte{color:var(--tenue);font-size:11.5px;font-family:var(--mono);margin-top:4px}
+
+  .criterios{margin-top:6px}
+  .criterios details{border-top:1px solid var(--borde);font-size:13px}
+  .criterios summary{padding:9px 2px;cursor:pointer;display:flex;
+    justify-content:space-between;gap:12px;align-items:baseline;list-style:none}
+  .criterios summary::-webkit-details-marker{display:none}
+  .criterios summary:hover{color:var(--oro)}
+  .criterios summary .izq::before{content:"▸";color:var(--tenue);margin-right:8px;
+    display:inline-block;transition:transform .15s}
+  .criterios details[open] summary .izq::before{transform:rotate(90deg)}
+  .criterios .cifras{font-family:var(--mono);font-size:12.5px;color:var(--suave);
+    white-space:nowrap}
+  .criterios .cifras b{color:var(--texto);font-size:13.5px}
+  .criterios .cuerpo{padding:4px 2px 16px 18px;color:var(--suave);font-size:12.5px}
+  .criterios .cuerpo .desglose{font-family:var(--mono);color:var(--oro);
+    font-size:12px;margin:9px 0}
+  .criterios .cuerpo .cita{color:var(--tenue);font-size:11.5px;margin-top:9px}
+  .criterios .excluido summary{color:var(--tenue)}
+  .escala-svg{width:100%;height:auto;display:block;margin:10px 0 4px;max-width:420px}
+  .escala-svg text{font-family:var(--mono);font-size:10px;fill:var(--tenue)}
+  /* gráficas */
+  .graficas{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:12px}
+  .graficas h3{margin:0 0 3px;font-size:14.5px}
+  .graficas .pie{color:var(--tenue);font-size:12px;margin:0 0 12px;line-height:1.45}
+  .grafica{width:100%;height:auto;display:block}
+  .grafica text{font-family:var(--mono)}
+  .grafica .eje{stroke:var(--borde);stroke-width:1}
+  .grafica .malla{stroke:var(--borde);stroke-width:1;stroke-dasharray:3 4;opacity:.5}
+  .grafica .rotulo{font-size:11px;fill:var(--tenue)}
+  .grafica .valor{font-size:11.5px;fill:var(--texto)}
+  .grafica .conector{stroke:var(--tenue);stroke-width:1;stroke-dasharray:2 3;opacity:.7}
+  .grafica rect{transition:opacity .15s}
+  .grafica rect:hover{opacity:.82}
+  .leyenda-g{display:flex;gap:15px;flex-wrap:wrap;margin-top:11px;font-size:12px;color:var(--suave)}
+  .leyenda-g span{display:inline-flex;align-items:center;gap:6px}
+  .leyenda-g i{width:11px;height:11px;border-radius:3px;flex:none}
   /* editor */
   #editor{display:none}
   #editor.abierto{display:block}
@@ -244,7 +305,8 @@ function pintar(){
   $("#nombreEmpresa").textContent = a.empresa;
   $("#periodosCab").textContent   = ` · ${a.periodos.join(" → ")} · ${a.moneda} (${a.unidad})`;
   $("#contenido").innerHTML =
-      seccionCalidad(a) + seccionIA() + seccionDiagnostico(a) + seccionPuente(a)
+      seccionCalidad(a) + seccionSalud(a) + seccionIA() + seccionDiagnostico(a) + seccionGraficas(a)
+    + seccionPuente(a)
     + seccionDupont(a)  + seccionIndicadores(a) + seccionHorizontal(a);
   conectarIA();
 }
@@ -287,7 +349,7 @@ function seccionIA(){
   if(!estadoIA.disponible){
     return `
     <section>
-      <h2><span class="num">2</span>Lectura del analista</h2>
+      <h2><span class="num">3</span>Lectura del analista</h2>
       <div class="tarjeta">
         <div class="apagado">La redacción con inteligencia artificial está desactivada.
           ${esc(estadoIA.motivo)}<br><br>
@@ -298,7 +360,7 @@ function seccionIA(){
   }
   return `
   <section>
-    <h2><span class="num">2</span>Lectura del analista</h2>
+    <h2><span class="num">3</span>Lectura del analista</h2>
     <p class="leyenda">La IA no calcula nada: recibe los números que el motor ya verificó
       y solo los traduce a lenguaje corriente.</p>
     <div class="tarjeta ia">
@@ -310,7 +372,7 @@ function seccionIA(){
       </div>
     </div>
 
-    <h2 style="margin-top:26px"><span class="num">2b</span>Pregúntale a tus datos</h2>
+    <h2 style="margin-top:26px"><span class="num">3b</span>Pregúntale a tus datos</h2>
     <p class="leyenda">Responde solo con las cifras de esta empresa y cita sus fuentes.</p>
     <div class="tarjeta ia">
       <div class="preguntas">
@@ -397,11 +459,11 @@ function seccionDiagnostico(a){
   const recs = a.recomendaciones.map(r=>`<li>${esc(r)}</li>`).join("");
   return `
   <section>
-    <h2><span class="num">3</span>Diagnóstico</h2>
+    <h2><span class="num">4</span>Diagnóstico</h2>
     <p class="leyenda">Alertas ordenadas por prioridad. Generadas por reglas explícitas,
       no por inteligencia artificial: cada una cita la evidencia numérica que la disparó.</p>
     ${alertas || '<div class="tarjeta">Sin alertas.</div>'}
-    ${recs ? `<h2 style="margin-top:26px"><span class="num">4</span>Recomendaciones</h2>
+    ${recs ? `<h2 style="margin-top:26px"><span class="num">5</span>Recomendaciones</h2>
       <div class="tarjeta"><ol class="recomendaciones">${recs}</ol></div>` : ""}
   </section>`;
 }
@@ -415,7 +477,7 @@ function seccionPuente(a){
   const color = fcl===null ? "var(--tenue)" : (fcl<0 ? "var(--rojo)" : "var(--verde)");
   return `
   <section>
-    <h2><span class="num">5</span>Puente de caja</h2>
+    <h2><span class="num">7</span>Puente de caja</h2>
     <p class="leyenda">Por qué la empresa puede vender más, reportar utilidades y aun así
       tener menos plata. Marco de Oscar León García.</p>
     <div class="tarjeta puente">
@@ -448,7 +510,7 @@ function seccionDupont(a){
         ${d.variacion_por_factor_pct?.[clave]!=null ? num(d.variacion_por_factor_pct[clave],2)+"%" : "—"}</td></tr>`;
   return `
   <section>
-    <h2><span class="num">6</span>Descomposición DuPont</h2>
+    <h2><span class="num">8</span>Descomposición DuPont</h2>
     <p class="leyenda">Separa la rentabilidad del socio en tres palancas. Saber cuál se movió
       dice dónde hay que actuar.</p>
     <div class="tarjeta">
@@ -470,6 +532,372 @@ function seccionDupont(a){
 }
 const varClase = v => v==null ? "neutro" : (v>0.5 ? "sube" : v<-0.5 ? "baja" : "neutro");
 
+/* 2 — puntaje de salud financiera
+   El puntaje, las notas y las ponderaciones vienen calculados del motor. Lo
+   único que ocurre aquí es dibujo: el arco, las barras y la curva de fondo de
+   cada escala, que no es más que la propia escala que envió el backend puesta
+   en coordenadas. El número que se lee es el que calculó Python. */
+
+// Color según puntaje: rojo en 0, ámbar en 50, verde en 100.
+function colorNota(p){
+  if(p === null || p === undefined) return "#6b83a3";
+  const mezclar = (a, b, t) => a.map((v, i) => Math.round(v + (b[i] - v) * t));
+  const rojo = [248, 113, 113], ambar = [251, 191, 36], verde = [74, 222, 128];
+  const c = p < 50 ? mezclar(rojo, ambar, p / 50) : mezclar(ambar, verde, (p - 50) / 50);
+  return `rgb(${c[0]},${c[1]},${c[2]})`;
+}
+
+// Evalúa la escala que mandó el backend, solo para dibujar su curva de fondo.
+function evaluarEscala(valor, escala){
+  if(valor <= escala[0][0]) return escala[0][1];
+  if(valor >= escala[escala.length - 1][0]) return escala[escala.length - 1][1];
+  for(let i = 0; i < escala.length - 1; i++){
+    const [x0, y0] = escala[i], [x1, y1] = escala[i + 1];
+    if(valor >= x0 && valor <= x1)
+      return x1 === x0 ? y0 : y0 + (y1 - y0) * (valor - x0) / (x1 - x0);
+  }
+  return escala[escala.length - 1][1];
+}
+
+/* La escala del criterio, dibujada: dónde premia, dónde castiga y en qué
+   punto exacto cayó esta empresa. Es lo que hace auditable la nota. */
+function dibujarEscala(c){
+  const esc = c.escala;
+  const min = esc[0][0], max = esc[esc.length - 1][0];
+  const W = 300, H = 46, izq = 4, der = 4, arriba = 6, altoBanda = 15;
+  const ancho = W - izq - der;
+  const px = v => izq + (v - min) / ((max - min) || 1) * ancho;
+
+  let franjas = "";
+  const pasos = 60;
+  for(let i = 0; i < pasos; i++){
+    const v0 = min + (max - min) * i / pasos;
+    const v1 = min + (max - min) * (i + 1) / pasos;
+    const medio = (v0 + v1) / 2;
+    franjas += `<rect x="${px(v0).toFixed(2)}" y="${arriba}" width="${(px(v1) - px(v0) + 0.6).toFixed(2)}"
+      height="${altoBanda}" fill="${colorNota(evaluarEscala(medio, esc))}"/>`;
+  }
+
+  let marcas = "";
+  [esc[0], esc[esc.length - 1]].forEach((p, i) => {
+    marcas += `<text x="${px(p[0]).toFixed(1)}" y="${arriba + altoBanda + 12}"
+      text-anchor="${i === 0 ? "start" : "end"}">${num(p[0], 0)}</text>`;
+  });
+
+  let aguja = "";
+  if(hay(c.valor)){
+    const x = Math.max(izq, Math.min(izq + ancho, px(c.valor)));
+    aguja = `<polygon points="${(x - 5).toFixed(1)},${arriba - 5} ${(x + 5).toFixed(1)},${arriba - 5} ${x.toFixed(1)},${arriba + 1}"
+        fill="var(--texto)"/>`
+      + `<line x1="${x.toFixed(1)}" y1="${arriba}" x2="${x.toFixed(1)}" y2="${arriba + altoBanda}"
+          stroke="#0b1523" stroke-width="2"/>`
+      + `<text x="${x.toFixed(1)}" y="${H - 2}" text-anchor="middle" fill="var(--texto)">${conUnidad(c.valor, c.unidad)}</text>`;
+  }
+
+  return `<svg class="escala-svg" viewBox="0 0 ${W} ${H}">${franjas}${marcas}${aguja}</svg>`;
+}
+
+function fichaCriterio(c){
+  if(!c.evaluable){
+    return `<details class="excluido">
+      <summary><span class="izq">${esc(c.nombre)}</span>
+        <span class="cifras">no evaluado</span></summary>
+      <div class="cuerpo">${esc(c.motivo)} Su peso se repartió entre los demás
+        indicadores de la dimensión, en vez de contar como cero.
+        <div class="cita">${esc(c.fuente)}</div></div></details>`;
+  }
+  const desglose = hay(c.tendencia)
+    ? `nota = 70% × ${num(c.nivel, 1)} (nivel) + 30% × ${num(c.tendencia, 1)} (tendencia) = ${num(c.nota, 1)}`
+    : `nota = nivel = ${num(c.nivel, 1)}`;
+  return `<details>
+    <summary>
+      <span class="izq">${esc(c.nombre)}
+        <span class="peso" style="color:var(--tenue);font-size:11px"> · pesa ${num(c.peso_efectivo, 0)}% aquí</span></span>
+      <span class="cifras">${conUnidad(c.valor, c.unidad)} →
+        <b style="color:${colorNota(c.nota)}">${num(c.nota, 0)}</b>/100</span>
+    </summary>
+    <div class="cuerpo">
+      ${esc(c.justificacion)}
+      ${c.derivado ? `<div class="desglose">se calcula como: ${esc(c.derivado)}</div>` : ""}
+      ${dibujarEscala(c)}
+      <div class="desglose">${esc(desglose)}</div>
+      ${c.motivo ? `<div style="color:var(--tenue)">${esc(c.motivo)}</div>` : ""}
+      ${(c.mejora === "baja")
+        ? `<div style="color:var(--tenue)">En este indicador, bajar es mejorar: la tendencia se califica al revés.</div>`
+        : ""}
+      <div class="cita">Fuente del umbral: ${esc(c.fuente)}</div>
+    </div></details>`;
+}
+
+function barraDimension(d){
+  if(!d.evaluable){
+    return `<div class="dim"><div class="fila1">
+      <span>${esc(d.nombre)} <span class="peso">pesa ${num(d.peso, 0)}%</span></span>
+      <span class="nota" style="color:var(--tenue)">sin datos</span></div>
+      <div class="aporte">${esc(d.motivo)} Su peso se repartió entre las demás dimensiones.</div>
+      <div class="criterios">${d.criterios.map(fichaCriterio).join("")}</div></div>`;
+  }
+  return `<div class="dim">
+    <div class="fila1">
+      <span>${esc(d.nombre)} <span class="peso">pesa ${num(d.peso, 0)}%</span></span>
+      <span class="nota" style="color:${colorNota(d.puntaje)}">${num(d.puntaje, 1)}</span>
+    </div>
+    <div class="riel"><div class="relleno" style="width:${Math.max(0, Math.min(100, d.puntaje)).toFixed(1)}%;
+      background:${colorNota(d.puntaje)}"></div></div>
+    <div class="aporte">aporta ${num(d.aporte, 1)} de los ${num(d.puntaje, 1)} × ${num(d.peso, 0)}% que le corresponden</div>
+    <div class="criterios">${d.criterios.map(fichaCriterio).join("")}</div>
+  </div>`;
+}
+
+function anilloPuntaje(p){
+  const R = 55, C = 2 * Math.PI * R;
+  const avance = Math.max(0, Math.min(100, p)) / 100 * C;
+  return `<svg class="anillo" viewBox="0 0 132 132">
+    <circle class="pista" cx="66" cy="66" r="${R}"/>
+    <circle class="arco" cx="66" cy="66" r="${R}" stroke="${colorNota(p)}"
+      stroke-dasharray="${avance.toFixed(1)} ${(C - avance).toFixed(1)}"/>
+    <text class="cifra" x="66" y="70" text-anchor="middle">${num(p, 1)}</text>
+    <text class="de" x="66" y="86" text-anchor="middle">de 100</text>
+  </svg>`;
+}
+
+function seccionSalud(a){
+  const s = a.salud;
+  if(!s || !s.disponible){
+    return s ? `<section><h2><span class="num">2</span>Salud financiera</h2>
+      <div class="tarjeta"><p class="apagado">${esc(s.motivo)}</p></div></section>` : "";
+  }
+  const m = s.metodologia;
+  return `
+  <section>
+    <h2><span class="num">2</span>Salud financiera</h2>
+    <p class="leyenda">Un solo número, con toda su metodología a la vista. Abra cualquier
+      indicador para ver el umbral con el que se comparó, de dónde salió ese umbral y
+      en qué punto exacto de la escala cayó esta empresa.</p>
+    <div class="tarjeta">
+      <div class="salud-cabeza">
+        ${anilloPuntaje(s.puntaje)}
+        <div class="salud-resumen">
+          <p class="banda" style="color:${colorNota(s.puntaje)}">${esc(s.banda.nombre)}</p>
+          <p>${esc(m.explicacion)}</p>
+          <div class="met">${esc(m.formula)}</div>
+        </div>
+      </div>
+      ${!s.confiable ? `<div class="aviso">⚠ ${esc(s.advertencia)}</div>` : ""}
+      ${s.metodologia.renormalizacion ? `<div class="aviso">⚠ Alguna dimensión quedó sin
+        datos y su peso se repartió entre las demás. Los porcentajes de abajo son los
+        originales; el reparto está anotado en cada una.</div>` : ""}
+      <div class="dims">${s.dimensiones.map(barraDimension).join("")}</div>
+    </div>
+  </section>`;
+}
+
+/* 5 — gráficas
+   Nota de arquitectura: aquí NO se calcula nada financiero. Todos los números
+   vienen ya resueltos del motor de Python; el navegador solo los traduce a
+   coordenadas. Es el mismo criterio que se aplicó a la IA: quien calcula es el
+   motor, los demás solo representan. */
+
+const C_ORO="#d9a441", C_AZUL="#60a5fa", C_VERDE="#4ade80",
+      C_ROJO="#f87171", C_HUESO="#e8eef7";
+
+const buscarInd = (a, cod) => a.indicadores.find(i => i.codigo === cod) || null;
+const hay = v => v !== null && v !== undefined;
+
+function marcoSvg(w, h, cuerpo){
+  return `<svg class="grafica" viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid meet">${cuerpo}</svg>`;
+}
+
+function tarjetaGrafica(titulo, pie, svg, leyenda){
+  const ley = (leyenda && leyenda.length)
+    ? `<div class="leyenda-g">${leyenda.map(([n, c]) =>
+        `<span><i style="background:${c}"></i>${esc(n)}</span>`).join("")}</div>`
+    : "";
+  return `<div class="tarjeta"><h3>${esc(titulo)}</h3>
+    <p class="pie">${esc(pie)}</p>${svg}${ley}</div>`;
+}
+
+// Extremos del eje, con un respiro arriba y el cero siempre dentro del cuadro:
+// una barra que no arranca en cero engaña al ojo.
+function extremos(valores){
+  const v = valores.filter(hay);
+  if(!v.length) return [0, 1];
+  const min = Math.min(0, ...v), max = Math.max(0, ...v);
+  const respiro = ((max - min) || 1) * 0.12;
+  return [min - (min < 0 ? respiro : 0), max + respiro];
+}
+
+// Convierte un valor en coordenada vertical dentro del área de dibujo.
+function escalaY(min, max, arriba, alto){
+  const rango = (max - min) || 1;
+  return v => arriba + (max - v) / rango * alto;
+}
+
+function malla(y, min, max, izq, ancho, dec){
+  let out = "";
+  for(let k = 0; k <= 4; k++){
+    const v = min + (max - min) * k / 4;
+    out += `<line class="malla" x1="${izq}" y1="${y(v).toFixed(1)}" x2="${izq + ancho}" y2="${y(v).toFixed(1)}"/>`
+         + `<text class="rotulo" x="${izq - 9}" y="${(y(v) + 3.5).toFixed(1)}" text-anchor="end">${num(v, dec)}</text>`;
+  }
+  return out;
+}
+
+/* 5a — evolución de los márgenes: barras agrupadas por periodo */
+function graficaMargenes(a){
+  const series = [
+    ["margen_bruto",       "Bruto",       C_ORO],
+    ["margen_operacional", "Operacional", C_AZUL],
+    ["margen_neto",        "Neto",        C_VERDE]
+  ].map(([cod, nom, color]) => ({nom: nom, color: color, ind: buscarInd(a, cod)}))
+   .filter(s => s.ind && s.ind.disponible);
+  if(!series.length) return "";
+
+  const per = a.periodos;
+  const W = 560, H = 290, izq = 48, der = 14, arr = 22, aba = 42;
+  const ancho = W - izq - der, alto = H - arr - aba;
+  const [min, max] = extremos(series.flatMap(s => s.ind.valores));
+  const y = escalaY(min, max, arr, alto);
+  const anchoGrupo = ancho / per.length;
+  const anchoBarra = Math.min(46, (anchoGrupo * 0.74) / series.length);
+
+  let barras = "";
+  per.forEach((p, i) => {
+    const centro = izq + anchoGrupo * (i + 0.5);
+    const x0 = centro - (anchoBarra * series.length) / 2;
+    series.forEach((s, j) => {
+      const v = s.ind.valores[i], x = x0 + anchoBarra * j, w = anchoBarra - 5;
+      if(!hay(v)){
+        barras += `<text class="rotulo" x="${(x + w / 2).toFixed(1)}" y="${(y(0) - 7).toFixed(1)}" text-anchor="middle">n/d</text>`;
+        return;
+      }
+      const cima = Math.min(y(v), y(0)), altura = Math.max(1.5, Math.abs(y(v) - y(0)));
+      barras += `<rect x="${x.toFixed(1)}" y="${cima.toFixed(1)}" width="${w.toFixed(1)}" height="${altura.toFixed(1)}" fill="${s.color}" rx="2"><title>${esc(s.nom)} ${esc(p)}: ${num(v, 2)}%</title></rect>`
+              + `<text class="valor" x="${(x + w / 2).toFixed(1)}" y="${(cima - 6).toFixed(1)}" text-anchor="middle">${num(v, 1)}</text>`;
+    });
+    barras += `<text class="rotulo" x="${centro.toFixed(1)}" y="${H - aba + 23}" text-anchor="middle">${esc(p)}</text>`;
+  });
+
+  return tarjetaGrafica(
+    "Evolución de los márgenes",
+    "Cuánto de cada 100 pesos vendidos sobrevive en cada escalón del estado de "
+      + "resultados. La distancia entre una barra y la siguiente es lo que se "
+      + "llevan los costos, los gastos y la deuda.",
+    marcoSvg(W, H, malla(y, min, max, izq, ancho, 1)
+      + `<line class="eje" x1="${izq}" y1="${y(0).toFixed(1)}" x2="${izq + ancho}" y2="${y(0).toFixed(1)}"/>`
+      + barras),
+    series.map(s => [s.nom, s.color]));
+}
+
+/* 5b — composición del ciclo de caja: cascada del último periodo */
+function graficaCiclo(a){
+  const partes = ["dias_cartera", "dias_inventario", "dias_proveedores",
+                  "ciclo_conversion_efectivo"].map(c => buscarInd(a, c));
+  if(partes.some(i => !i)) return "";
+  const u = a.periodos.length - 1;
+  const v = partes.map(i => i.valores[u]);
+  if(v.some(x => !hay(x))) return "";
+
+  // Solo geometría: los cuatro números ya vienen calculados, y el motor define
+  // el ciclo como cartera + inventario − proveedores, así que la cascada cierra.
+  const pasos = [
+    {nom: "Cartera",     delta:  v[0], color: C_AZUL},
+    {nom: "Inventario",  delta:  v[1], color: C_ORO},
+    {nom: "Proveedores", delta: -v[2], color: C_ROJO}
+  ];
+  let acum = 0;
+  const cajas = pasos.map(p => {
+    const desde = acum;
+    acum += p.delta;
+    return Object.assign({}, p, {desde: desde, hasta: acum});
+  });
+  cajas.push({nom: "Ciclo", delta: v[3], desde: 0, hasta: v[3], color: C_HUESO, total: true});
+
+  const W = 560, H = 290, izq = 48, der = 14, arr = 22, aba = 42;
+  const ancho = W - izq - der, alto = H - arr - aba;
+  const [min, max] = extremos(cajas.flatMap(c => [c.desde, c.hasta]));
+  const y = escalaY(min, max, arr, alto);
+  const paso = ancho / cajas.length;
+  const anchoBarra = Math.min(66, paso * 0.58);
+
+  let cuerpo = malla(y, min, max, izq, ancho, 0), previo = null;
+  cajas.forEach((c, i) => {
+    const cx = izq + paso * (i + 0.5), x = cx - anchoBarra / 2;
+    const cima = Math.min(y(c.desde), y(c.hasta));
+    const altura = Math.max(2, Math.abs(y(c.desde) - y(c.hasta)));
+    if(previo !== null && !c.total)
+      cuerpo += `<line class="conector" x1="${(cx - paso + anchoBarra / 2).toFixed(1)}" y1="${previo.toFixed(1)}" x2="${x.toFixed(1)}" y2="${previo.toFixed(1)}"/>`;
+    cuerpo += `<rect x="${x.toFixed(1)}" y="${cima.toFixed(1)}" width="${anchoBarra.toFixed(1)}" height="${altura.toFixed(1)}" fill="${c.color}" rx="2"><title>${esc(c.nom)}: ${num(c.delta, 1)} días</title></rect>`
+            + `<text class="valor" x="${cx.toFixed(1)}" y="${(cima - 6).toFixed(1)}" text-anchor="middle">${(c.delta > 0 && !c.total) ? "+" : ""}${num(c.delta, 0)}</text>`
+            + `<text class="rotulo" x="${cx.toFixed(1)}" y="${H - aba + 23}" text-anchor="middle">${esc(c.nom)}</text>`;
+    previo = y(c.hasta);
+  });
+  cuerpo += `<line class="eje" x1="${izq}" y1="${y(0).toFixed(1)}" x2="${izq + ancho}" y2="${y(0).toFixed(1)}"/>`;
+
+  return tarjetaGrafica(
+    "Composición del ciclo de caja · " + a.periodos[u],
+    "Días que la plata pasa fuera de la caja. Cobrar e inventariar empujan el ciclo "
+      + "hacia arriba; pagarle más tarde al proveedor lo devuelve. El saldo son "
+      + num(v[3], 0) + " días de capital de trabajo que alguien tiene que financiar.",
+    marcoSvg(W, H, cuerpo),
+    [["Cartera", C_AZUL], ["Inventario", C_ORO], ["Proveedores (resta)", C_ROJO],
+     ["Ciclo neto", C_HUESO]]);
+}
+
+/* 5c — DuPont: qué palanca movió el ROE */
+function graficaDupont(a){
+  const atr = a.dupont.variacion_por_factor_pct;
+  if(!atr) return "";
+  const filas = [
+    ["margen_neto",              "Margen neto",              C_ORO],
+    ["rotacion_activos",         "Rotación de activos",      C_AZUL],
+    ["multiplicador_patrimonio", "Multiplicador patrimonio", C_VERDE]
+  ].filter(([k]) => hay(atr[k]));
+  if(!filas.length) return "";
+
+  const W = 560, H = 240, izq = 178, der = 58, arr = 24, aba = 30;
+  const ancho = W - izq - der, alto = H - arr - aba;
+  const [min, max] = extremos(filas.map(([k]) => atr[k]));
+  const rango = (max - min) || 1;
+  const x = v => izq + (v - min) / rango * ancho;
+  const carril = alto / filas.length;
+  const altoBarra = Math.min(32, carril * 0.56);
+
+  let cuerpo = `<line class="eje" x1="${x(0).toFixed(1)}" y1="${arr - 8}" x2="${x(0).toFixed(1)}" y2="${arr + alto}"/>`;
+  filas.forEach(([k, nom, color], i) => {
+    const v = atr[k], cy = arr + carril * (i + 0.5);
+    const bx = Math.min(x(0), x(v)), bw = Math.max(2, Math.abs(x(v) - x(0)));
+    const positivo = v >= 0;
+    cuerpo += `<rect x="${bx.toFixed(1)}" y="${(cy - altoBarra / 2).toFixed(1)}" width="${bw.toFixed(1)}" height="${altoBarra}" fill="${color}" rx="2"><title>${esc(nom)}: ${v > 0 ? "+" : ""}${num(v, 2)}%</title></rect>`
+            + `<text class="rotulo" x="${izq - 12}" y="${(cy + 4).toFixed(1)}" text-anchor="end">${esc(nom)}</text>`
+            + `<text class="valor" x="${(positivo ? bx + bw + 7 : bx - 7).toFixed(1)}" y="${(cy + 4).toFixed(1)}" text-anchor="${positivo ? "start" : "end"}">${v > 0 ? "+" : ""}${num(v, 1)}%</text>`;
+  });
+
+  const roe = a.dupont.factores.roe_reconstruido;
+  const ini = roe[0], fin = roe[roe.length - 1];
+  const pie = (hay(ini) && hay(fin))
+    ? "El ROE pasó de " + num(ini, 2) + "% a " + num(fin, 2) + "%. Cada barra dice cuánto "
+      + "se movió la palanca que lo explica: si la que crece es la deuda y no el margen, "
+      + "la rentabilidad mejoró por riesgo, no por negocio."
+    : "Cuánto se movió cada palanca del ROE entre el primer periodo y el último.";
+
+  return tarjetaGrafica("Qué movió la rentabilidad del socio", pie,
+    marcoSvg(W, H, cuerpo), filas.map(([, n, c]) => [n, c]));
+}
+
+function seccionGraficas(a){
+  const gs = [graficaMargenes(a), graficaCiclo(a), graficaDupont(a)].filter(Boolean);
+  if(!gs.length) return "";
+  return `
+  <section>
+    <h2><span class="num">6</span>Panorama visual</h2>
+    <p class="leyenda">Las mismas cifras de las tablas, dibujadas. Aquí no se calcula
+      nada: el navegador solo ubica en coordenadas lo que ya resolvió el motor.
+      Pase el cursor sobre cualquier barra para ver el valor exacto.</p>
+    <div class="graficas">${gs.join("")}</div>
+  </section>`;
+}
+
 /* 5 — indicadores */
 function seccionIndicadores(a){
   const cats = {};
@@ -480,7 +908,7 @@ function seccionIndicadores(a){
     <div class="rejilla">${lista.map(tarjetaIndicador).join("")}</div>`).join("");
   return `
   <section>
-    <h2><span class="num">7</span>Indicadores</h2>
+    <h2><span class="num">9</span>Indicadores</h2>
     <p class="leyenda">Activa <em>modo docente</em> arriba para ver la fórmula, los insumos
       y la fuente bibliográfica de cada indicador.</p>
     ${bloques}
@@ -532,7 +960,7 @@ function seccionHorizontal(a){
     </table></div>`;
   return `
   <section>
-    <h2><span class="num">8</span>Análisis horizontal</h2>
+    <h2><span class="num">10</span>Análisis horizontal</h2>
     <p class="leyenda">Variación entre el primer y el último período.</p>
     ${tabla("Estado de resultados", a.horizontal.resultados)}
     ${tabla("Balance general", a.horizontal.balance)}

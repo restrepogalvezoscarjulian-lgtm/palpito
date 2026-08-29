@@ -29,6 +29,7 @@ from motor.indicadores import (
 )
 from motor import narrativa
 from motor.modelos import EstadosFinancieros
+from motor.salud import puntaje_salud
 from motor.validacion import resumen, semaforo, validar
 
 RAIZ = Path(__file__).resolve().parents[1]
@@ -98,6 +99,7 @@ def _analizar(ef: EstadosFinancieros) -> dict:
             {**asdict(i), "disponible": i.disponible, "variacion": i.variacion()}
             for i in indicadores.values()
         ],
+        "salud": puntaje_salud(ef),
         "vertical": analisis_vertical(ef),
         "horizontal": analisis_horizontal(ef),
         "dupont": dupont(ef),
