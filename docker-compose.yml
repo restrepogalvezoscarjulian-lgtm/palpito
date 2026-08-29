@@ -1,0 +1,16 @@
+# Uso local:  docker compose up --build   ->  http://localhost:8000
+#
+# En el servidor NO se usa este archivo: Dokploy despliega como "Application"
+# desde el repositorio de GitHub usando el Dockerfile. Ese tipo de servicio se
+# une solo a dokploy-network, evitando el problema de reconectar la red en cada
+# redespliegue (ver docs/DESPLIEGUE.md).
+services:
+  palpito:
+    build: .
+    container_name: palpito
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_MODELO: ${OPENROUTER_MODELO:-deepseek/deepseek-v4-flash}

@@ -1,0 +1,34 @@
+{
+  "empresa": "Comercial Andina S.A.",
+  "moneda": "COP",
+  "unidad": "millones",
+  "periodos": ["2023", "2024"],
+  "balance": {
+    "efectivo":                 [420,  280],
+    "cuentas_por_cobrar":       [1250, 1680],
+    "inventarios":              [1100, 1460],
+    "activo_corriente":         [2950, 3620],
+    "propiedad_planta_equipo":  [2800, 3250],
+    "activo_total":             [5750, 6870],
+    "proveedores":              [920,  1040],
+    "deuda_financiera_cp":      [380,  620],
+    "pasivo_corriente":         [1650, 2050],
+    "deuda_financiera_lp":      [1250, 1780],
+    "patrimonio":               [2300, 2650]
+  },
+  "resultados": {
+    "ventas":                    [8900, 10600],
+    "costo_ventas":              [5750, 7050],
+    "utilidad_bruta":            [3150, 3550],
+    "gastos_operacionales":      [1620, 2040],
+    "utilidad_operacional":      [1530, 1510],
+    "gastos_financieros":        [220,  390],
+    "utilidad_antes_impuestos":  [1310, 1120],
+    "impuestos":                 [393,  336],
+    "utilidad_neta":             [917,  784]
+  },
+  "supuestos": {
+    "dias_anio": 365,
+    "nota": "El caso no informa depreciacion, compras del periodo, ni la particion de ventas a credito. Los indicadores que las requieren se reportan como no disponibles."
+  }
+}

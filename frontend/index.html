@@ -1,0 +1,593 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pálpito — Diagnóstico Financiero</title>
+<style>
+  :root{
+    --fondo:#0b1523; --panel:#132741; --panel2:#0f1f35; --borde:#1e3a5c;
+    --texto:#e8eef7; --suave:#9db2cd; --tenue:#6b83a3;
+    --oro:#d9a441; --verde:#4ade80; --rojo:#f87171; --ambar:#fbbf24; --azul:#60a5fa;
+    --mono:ui-monospace,"Cascadia Code",Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--fondo);color:var(--texto);
+       font-family:system-ui,-apple-system,"Segoe UI",sans-serif;line-height:1.55}
+  .envoltura{max-width:1180px;margin:0 auto;padding:28px 20px 80px}
+
+  header.principal{border-bottom:1px solid var(--borde);padding-bottom:20px;margin-bottom:26px}
+  header.principal h1{margin:0 0 4px;font-size:26px;letter-spacing:-.3px}
+  header.principal .sub{color:var(--suave);font-size:14px}
+  .empresa{color:var(--oro);font-weight:600}
+
+  .barra{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:18px 0}
+  button,select{background:var(--panel);color:var(--texto);border:1px solid var(--borde);
+    border-radius:8px;padding:9px 15px;font-size:14px;cursor:pointer;font-family:inherit}
+  button:hover,select:hover{border-color:var(--oro)}
+  button.primario{background:var(--oro);color:#20160a;border-color:var(--oro);font-weight:600}
+  button.primario:hover{filter:brightness(1.1)}
+  label.interruptor{display:flex;align-items:center;gap:8px;color:var(--suave);
+    font-size:14px;cursor:pointer;user-select:none}
+
+  section{margin:34px 0}
+  h2{font-size:19px;margin:0 0 4px;display:flex;align-items:center;gap:10px}
+  h2 .num{background:var(--panel);border:1px solid var(--borde);color:var(--oro);
+    width:26px;height:26px;border-radius:7px;display:grid;place-items:center;font-size:13px}
+  .leyenda{color:var(--tenue);font-size:13px;margin:0 0 16px 36px}
+
+  .tarjeta{background:var(--panel);border:1px solid var(--borde);border-radius:12px;padding:18px}
+
+  /* semáforo de datos */
+  .semaforo{border-left-width:5px;border-left-style:solid}
+  .semaforo.rojo{border-left-color:var(--rojo)}
+  .semaforo.amarillo{border-left-color:var(--ambar)}
+  .semaforo.verde{border-left-color:var(--verde)}
+  .semaforo h3{margin:0 0 10px;font-size:16px}
+  .conteos{display:flex;gap:18px;flex-wrap:wrap;margin-bottom:14px;font-size:13px}
+  .conteos b{font-size:19px;display:block;font-family:var(--mono)}
+  .hallazgo{border-top:1px solid var(--borde);padding:11px 0;font-size:14px}
+  .hallazgo:last-child{padding-bottom:0}
+  .etiqueta{font-size:10.5px;font-weight:700;letter-spacing:.7px;padding:2px 7px;
+    border-radius:4px;margin-right:8px;text-transform:uppercase}
+  .etiqueta.error{background:rgba(248,113,113,.16);color:var(--rojo)}
+  .etiqueta.advertencia{background:rgba(251,191,36,.16);color:var(--ambar)}
+  .etiqueta.info{background:rgba(96,165,250,.16);color:var(--azul)}
+  .detalle{color:var(--tenue);font-size:12.5px;margin-top:5px;padding-left:2px}
+
+  /* alertas */
+  .alerta{background:var(--panel);border:1px solid var(--borde);border-radius:12px;
+    padding:16px 18px;margin-bottom:12px;display:flex;gap:15px}
+  .alerta .rank{flex:none;width:30px;height:30px;border-radius:8px;display:grid;
+    place-items:center;font-weight:700;font-size:14px;background:var(--panel2);
+    border:1px solid var(--borde);color:var(--suave)}
+  .alerta.top .rank{background:rgba(248,113,113,.15);border-color:var(--rojo);color:var(--rojo)}
+  .alerta h4{margin:2px 0 7px;font-size:15.5px}
+  .alerta p{margin:0 0 10px;color:var(--suave);font-size:13.5px}
+  .fuentes{background:var(--panel2);border-radius:8px;padding:9px 12px;
+    font-family:var(--mono);font-size:12px;color:var(--suave)}
+  .fuentes div{padding:2px 0}
+  .fuentes .rotulo{color:var(--tenue);font-size:10.5px;letter-spacing:.6px;
+    text-transform:uppercase;margin-bottom:4px;font-family:inherit}
+
+  /* indicadores */
+  .rejilla{display:grid;grid-template-columns:repeat(auto-fill,minmax(272px,1fr));gap:12px}
+  .ind{background:var(--panel);border:1px solid var(--borde);border-radius:11px;padding:14px}
+  .ind .nom{font-size:13px;color:var(--suave);margin-bottom:9px;min-height:34px}
+  .valores{display:flex;align-items:baseline;gap:10px;font-family:var(--mono)}
+  .v{font-size:21px;font-weight:600}
+  .v.nd{font-size:14px;color:var(--tenue);font-weight:400}
+  .flecha{color:var(--tenue);font-size:14px}
+  .delta{font-size:12px;margin-left:auto;font-family:var(--mono)}
+  .sube{color:var(--verde)} .baja{color:var(--rojo)} .neutro{color:var(--tenue)}
+  .docencia{display:none;margin-top:11px;padding-top:11px;border-top:1px dashed var(--borde);
+    font-size:12px;color:var(--suave)}
+  body.docente .docencia{display:block}
+  .docencia code{font-family:var(--mono);color:var(--oro);font-size:11.5px}
+  .docencia .campo{margin-bottom:5px}
+  .docencia .campo b{color:var(--tenue);font-weight:600;font-size:10.5px;
+    text-transform:uppercase;letter-spacing:.5px;display:block}
+
+  /* tablas */
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  th,td{padding:8px 11px;text-align:right;border-bottom:1px solid var(--borde)}
+  th:first-child,td:first-child{text-align:left}
+  thead th{color:var(--tenue);font-size:11px;text-transform:uppercase;
+    letter-spacing:.6px;font-weight:600}
+  tbody tr:hover{background:rgba(255,255,255,.02)}
+  td.num{font-family:var(--mono)}
+  .desplazable{overflow-x:auto}
+
+  /* puente de caja */
+  .puente{font-family:var(--mono);font-size:14px}
+  .puente .fila{display:flex;justify-content:space-between;padding:9px 0;
+    border-bottom:1px solid var(--borde)}
+  .puente .fila.total{border-top:2px solid var(--oro);border-bottom:none;
+    margin-top:6px;padding-top:12px;font-weight:700;font-size:16px}
+  .puente .fila.eco{border:none;color:var(--suave);font-size:13px;padding:4px 0}
+  .aviso{background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.3);
+    border-radius:8px;padding:10px 13px;font-size:12.5px;color:var(--ambar);margin-top:14px}
+
+  /* editor */
+  #editor{display:none}
+  #editor.abierto{display:block}
+  #editor input{background:var(--panel2);border:1px solid var(--borde);color:var(--texto);
+    border-radius:6px;padding:5px 9px;width:110px;text-align:right;font-family:var(--mono);
+    font-size:13px}
+  #editor input:focus{outline:none;border-color:var(--oro)}
+
+  /* narrativa IA */
+  .ia{background:linear-gradient(180deg,rgba(217,164,65,.07),transparent);
+      border:1px solid rgba(217,164,65,.28)}
+  .ia .prosa{font-size:14.5px;line-height:1.7}
+  .ia .prosa strong{color:var(--oro)}
+  .ia .prosa p{margin:0 0 12px}
+  .sello{display:inline-flex;align-items:center;gap:7px;font-size:11px;color:var(--tenue);
+    border:1px solid var(--borde);border-radius:20px;padding:3px 11px;margin-top:14px;
+    font-family:var(--mono)}
+  .punto{width:6px;height:6px;border-radius:50%;background:var(--verde)}
+  .preguntas{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+  .preguntas button{font-size:12.5px;padding:6px 12px;color:var(--suave)}
+  #cajaPregunta{display:flex;gap:8px;margin-top:6px}
+  #cajaPregunta input{flex:1;background:var(--panel2);border:1px solid var(--borde);
+    color:var(--texto);border-radius:8px;padding:10px 13px;font-size:14px;font-family:inherit}
+  #cajaPregunta input:focus{outline:none;border-color:var(--oro)}
+  .apagado{color:var(--tenue);font-size:13.5px}
+
+  .recomendaciones li{margin-bottom:10px;color:var(--suave);font-size:14px}
+  .cargando{color:var(--tenue);padding:40px;text-align:center}
+  footer{margin-top:60px;padding-top:20px;border-top:1px solid var(--borde);
+    color:var(--tenue);font-size:12px}
+</style>
+</head>
+<body>
+<div class="envoltura">
+
+  <header class="principal">
+    <h1>Pálpito</h1>
+    <div class="sub" style="margin-bottom:6px;font-style:italic;color:var(--tenue)">
+      «El logro del objetivo financiero se puede verificar a través de lo que se denominará
+      <b>pálpito del empresario</b> con respecto al comportamiento del flujo de caja.»
+      — Oscar León García
+    </div>
+    <div class="sub">
+      Análisis determinista de estados financieros —
+      <span class="empresa" id="nombreEmpresa">cargando…</span>
+      <span id="periodosCab"></span>
+    </div>
+  </header>
+
+  <div class="barra">
+    <select id="selectorCaso"></select>
+    <button id="btnEditor">Editar datos</button>
+    <button class="primario" id="btnRecalcular" style="display:none">Recalcular</button>
+    <label class="interruptor">
+      <input type="checkbox" id="chkDocente"> Modo docente (ver fórmulas)
+    </label>
+  </div>
+
+  <div id="editor" class="tarjeta"></div>
+  <div id="contenido"><div class="cargando">Cargando análisis…</div></div>
+
+  <footer>
+    Los indicadores se calculan con fórmulas deterministas verificadas por pruebas
+    automatizadas. Herramienta educativa: no constituye asesoría financiera.
+  </footer>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+let datosCaso = null;   // datos crudos editables
+let analisis  = null;   // resultado del backend
+
+// ---------------------------------------------------------------- utilidades
+const NOMBRES = {
+  efectivo:"Efectivo", cuentas_por_cobrar:"Cuentas por cobrar", inventarios:"Inventarios",
+  activo_corriente:"Activo corriente", propiedad_planta_equipo:"Propiedad, planta y equipo",
+  activo_total:"Activo total", proveedores:"Proveedores", deuda_financiera_cp:"Deuda financiera CP",
+  pasivo_corriente:"Pasivo corriente", deuda_financiera_lp:"Deuda financiera LP",
+  patrimonio:"Patrimonio", ventas:"Ventas", costo_ventas:"Costo de ventas",
+  utilidad_bruta:"Utilidad bruta", gastos_operacionales:"Gastos de administración y ventas",
+  utilidad_operacional:"Utilidad operacional (EBIT)", gastos_financieros:"Gastos financieros",
+  utilidad_antes_impuestos:"Utilidad antes de impuestos", impuestos:"Impuesto",
+  utilidad_neta:"Utilidad neta", depreciacion:"Depreciación", compras:"Compras",
+  ventas_credito:"Ventas a crédito"
+};
+const rotulo = k => NOMBRES[k] || k.replace(/_/g," ").replace(/^./,c=>c.toUpperCase());
+
+function num(v, dec=2){
+  if(v===null||v===undefined) return "n/d";
+  return v.toLocaleString("es-CO",{minimumFractionDigits:dec,maximumFractionDigits:dec});
+}
+function conUnidad(v, u){
+  if(v===null||v===undefined) return "n/d";
+  if(u==="%")     return num(v,2)+"%";
+  if(u==="dias")  return num(v,1)+" días";
+  if(u==="monto") return num(v,0);
+  return num(v,2);
+}
+const esc = t => String(t).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+// ------------------------------------------------------------------- carga
+async function cargarListaCasos(){
+  const casos = await (await fetch("/api/casos")).json();
+  $("#selectorCaso").innerHTML = casos
+    .map(c => `<option value="${c.id}">${esc(c.empresa)}</option>`).join("");
+  if(casos.length) await cargarCaso(casos[0].id);
+}
+
+async function cargarCaso(id){
+  datosCaso = await (await fetch(`/api/casos/${id}`)).json();
+  await analizar();
+  pintarEditor();
+}
+
+async function analizar(){
+  $("#contenido").innerHTML = '<div class="cargando">Calculando…</div>';
+  const r = await fetch("/api/analizar", {
+    method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify(datosCaso)
+  });
+  if(!r.ok){
+    const e = await r.json().catch(()=>({detail:"Error desconocido"}));
+    $("#contenido").innerHTML = `<div class="tarjeta semaforo rojo">
+      <h3>No se pudo analizar</h3><div>${esc(e.detail)}</div></div>`;
+    return;
+  }
+  analisis = await r.json();
+  pintar();
+}
+
+// ------------------------------------------------------------------ pintado
+function pintar(){
+  const a = analisis;
+  $("#nombreEmpresa").textContent = a.empresa;
+  $("#periodosCab").textContent   = ` · ${a.periodos.join(" → ")} · ${a.moneda} (${a.unidad})`;
+  $("#contenido").innerHTML =
+      seccionCalidad(a) + seccionIA() + seccionDiagnostico(a) + seccionPuente(a)
+    + seccionDupont(a)  + seccionIndicadores(a) + seccionHorizontal(a);
+  conectarIA();
+}
+
+/* 1 — calidad de los datos */
+function seccionCalidad(a){
+  const v = a.validacion, r = v.resumen;
+  const titulos = {
+    rojo:"Los datos tienen inconsistencias que afectan el análisis",
+    amarillo:"Los datos están incompletos",
+    verde:"Los datos son consistentes"
+  };
+  const hall = v.hallazgos.map(h => `
+    <div class="hallazgo">
+      <span class="etiqueta ${h.severidad}">${h.severidad}</span>${esc(h.mensaje)}
+      ${h.detalle ? `<div class="detalle">${esc(h.detalle)}</div>` : ""}
+    </div>`).join("");
+  return `
+  <section>
+    <h2><span class="num">1</span>Calidad de los datos</h2>
+    <p class="leyenda">Esto se verifica <em>antes</em> de calcular cualquier indicador.
+      Un ratio sobre datos inconsistentes es un número bonito y falso.</p>
+    <div class="tarjeta semaforo ${v.semaforo}">
+      <h3>${titulos[v.semaforo]}</h3>
+      <div class="conteos">
+        <div><b style="color:var(--rojo)">${r.errores}</b>errores</div>
+        <div><b style="color:var(--ambar)">${r.advertencias}</b>advertencias</div>
+        <div><b style="color:var(--azul)">${r.informativos}</b>informativos</div>
+      </div>
+      ${hall || '<div class="hallazgo">Sin observaciones.</div>'}
+    </div>
+  </section>`;
+}
+
+
+/* 1b — narrativa con IA */
+let estadoIA = {disponible:false, motivo:"", modelo:null};
+
+function seccionIA(){
+  if(!estadoIA.disponible){
+    return `
+    <section>
+      <h2><span class="num">2</span>Lectura del analista</h2>
+      <div class="tarjeta">
+        <div class="apagado">La redacción con inteligencia artificial está desactivada.
+          ${esc(estadoIA.motivo)}<br><br>
+          Todo lo demás de esta página —indicadores, alertas, puente de caja— se calcula
+          sin IA y sigue siendo válido.</div>
+      </div>
+    </section>`;
+  }
+  return `
+  <section>
+    <h2><span class="num">2</span>Lectura del analista</h2>
+    <p class="leyenda">La IA no calcula nada: recibe los números que el motor ya verificó
+      y solo los traduce a lenguaje corriente.</p>
+    <div class="tarjeta ia">
+      <div id="salidaIA" class="prosa apagado">
+        Presiona el botón para que el modelo redacte el diagnóstico.
+      </div>
+      <div style="margin-top:14px">
+        <button class="primario" id="btnNarrar">Redactar diagnóstico</button>
+      </div>
+    </div>
+
+    <h2 style="margin-top:26px"><span class="num">2b</span>Pregúntale a tus datos</h2>
+    <p class="leyenda">Responde solo con las cifras de esta empresa y cita sus fuentes.</p>
+    <div class="tarjeta ia">
+      <div class="preguntas">
+        <button class="sugerencia">¿Por qué tengo menos plata si vendí más?</button>
+        <button class="sugerencia">¿Cuál es mi problema más grave?</button>
+        <button class="sugerencia">¿Puedo endeudarme más?</button>
+        <button class="sugerencia">¿Qué pasa si cobro 10 días más rápido?</button>
+      </div>
+      <div id="cajaPregunta">
+        <input id="inpPregunta" placeholder="Escribe tu pregunta…" maxlength="500">
+        <button class="primario" id="btnPreguntar">Preguntar</button>
+      </div>
+      <div id="salidaPregunta" class="prosa" style="margin-top:14px"></div>
+    </div>
+  </section>`;
+}
+
+/* markdown mínimo: negritas y párrafos */
+function md(t){
+  return esc(t)
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .split(/\n\s*\n/).map(p => `<p>${p.replace(/\n/g,"<br>")}</p>`).join("");
+}
+
+function sello(modelo){
+  return `<div class="sello"><span class="punto"></span>Redactado por ${esc(modelo)}
+    · sobre cifras verificadas por el motor</div>`;
+}
+
+async function pedirIA(ruta, cuerpo, destino, textoCargando){
+  const salida = $(destino);
+  salida.className = "prosa apagado";
+  salida.textContent = textoCargando;
+  try{
+    const r = await fetch(ruta, {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify(cuerpo)
+    });
+    const d = await r.json();
+    if(!r.ok){ throw new Error(d.detail || "Error del servidor"); }
+    if(!d.disponible){ salida.textContent = d.motivo; return; }
+    salida.className = "prosa";
+    salida.innerHTML = md(d.texto) + sello(d.modelo);
+  }catch(e){
+    salida.className = "prosa";
+    salida.innerHTML = `<span style="color:var(--rojo)">No se pudo obtener la respuesta: ${esc(e.message)}</span>`;
+  }
+}
+
+function conectarIA(){
+  const btnN = $("#btnNarrar");
+  if(btnN) btnN.addEventListener("click", () =>
+    pedirIA("/api/narrar", {estados: datosCaso}, "#salidaIA", "Redactando…"));
+
+  const btnP = $("#btnPreguntar");
+  if(btnP){
+    const lanzar = () => {
+      const q = $("#inpPregunta").value.trim();
+      if(!q) return;
+      pedirIA("/api/preguntar", {estados: datosCaso, pregunta: q},
+              "#salidaPregunta", "Consultando…");
+    };
+    btnP.addEventListener("click", lanzar);
+    $("#inpPregunta").addEventListener("keydown", e => { if(e.key==="Enter") lanzar(); });
+    document.querySelectorAll(".sugerencia").forEach(b =>
+      b.addEventListener("click", () => { $("#inpPregunta").value = b.textContent.trim(); lanzar(); }));
+  }
+}
+
+/* 3 — diagnóstico */
+function seccionDiagnostico(a){
+  const alertas = a.alertas.map(al => `
+    <div class="alerta ${al.prioridad<=3?"top":""}">
+      <div class="rank">${al.prioridad}</div>
+      <div style="flex:1">
+        <h4>${esc(al.titulo)}</h4>
+        <p>${esc(al.explicacion)}</p>
+        <div class="fuentes">
+          <div class="rotulo">Evidencia</div>
+          ${al.evidencia.map(e=>`<div>${esc(e)}</div>`).join("")}
+        </div>
+      </div>
+    </div>`).join("");
+  const recs = a.recomendaciones.map(r=>`<li>${esc(r)}</li>`).join("");
+  return `
+  <section>
+    <h2><span class="num">3</span>Diagnóstico</h2>
+    <p class="leyenda">Alertas ordenadas por prioridad. Generadas por reglas explícitas,
+      no por inteligencia artificial: cada una cita la evidencia numérica que la disparó.</p>
+    ${alertas || '<div class="tarjeta">Sin alertas.</div>'}
+    ${recs ? `<h2 style="margin-top:26px"><span class="num">4</span>Recomendaciones</h2>
+      <div class="tarjeta"><ol class="recomendaciones">${recs}</ol></div>` : ""}
+  </section>`;
+}
+
+/* 3 — puente de caja */
+function seccionPuente(a){
+  const p = a.puente_caja;
+  if(!p.disponible) return "";
+  const signo = v => v===null ? "n/d" : (v<0?"−":"") + num(Math.abs(v),0);
+  const fcl = p.flujo_caja_libre_aprox;
+  const color = fcl===null ? "var(--tenue)" : (fcl<0 ? "var(--rojo)" : "var(--verde)");
+  return `
+  <section>
+    <h2><span class="num">5</span>Puente de caja</h2>
+    <p class="leyenda">Por qué la empresa puede vender más, reportar utilidades y aun así
+      tener menos plata. Marco de Oscar León García.</p>
+    <div class="tarjeta puente">
+      <div class="fila"><span>UODI generada por la operación</span>
+        <span>${signo(p.uodi)}</span></div>
+      <div class="fila"><span>− Consumido por el aumento del capital de trabajo (KTNO)</span>
+        <span style="color:var(--rojo)">−${num(p.aumento_ktno,0)}</span></div>
+      <div class="fila"><span>− Consumido por inversión en activos fijos</span>
+        <span style="color:var(--rojo)">−${num(p.aumento_activos_fijos_neto,0)}</span></div>
+      <div class="fila total"><span>Flujo de caja libre aproximado</span>
+        <span style="color:${color}">${signo(fcl)}</span></div>
+      <div style="margin-top:16px">
+        <div class="fila eco"><span>Se cubrió con más deuda financiera</span>
+          <span>${signo(p.variacion_deuda_financiera)}</span></div>
+        <div class="fila eco"><span>Y con el efectivo que había en caja</span>
+          <span>${signo(p.variacion_efectivo)}</span></div>
+      </div>
+      ${p.es_aproximacion ? `<div class="aviso">⚠ ${esc(p.advertencia)}</div>` : ""}
+    </div>
+  </section>`;
+}
+
+/* 4 — DuPont */
+function seccionDupont(a){
+  const d = a.dupont, f = d.factores, per = a.periodos;
+  if(!f.roe_reconstruido.some(v=>v!==null)) return "";
+  const fila = (nom, clave, dec) => `
+    <tr><td>${nom}</td>${f[clave].map(v=>`<td class="num">${num(v,dec)}</td>`).join("")}
+      <td class="num ${varClase(d.variacion_por_factor_pct?.[clave])}">
+        ${d.variacion_por_factor_pct?.[clave]!=null ? num(d.variacion_por_factor_pct[clave],2)+"%" : "—"}</td></tr>`;
+  return `
+  <section>
+    <h2><span class="num">6</span>Descomposición DuPont</h2>
+    <p class="leyenda">Separa la rentabilidad del socio en tres palancas. Saber cuál se movió
+      dice dónde hay que actuar.</p>
+    <div class="tarjeta">
+      <div style="font-family:var(--mono);font-size:12.5px;color:var(--oro);margin-bottom:14px">
+        ${esc(d.formula)}</div>
+      <div class="desplazable"><table>
+        <thead><tr><th>Factor</th>${per.map(p=>`<th>${p}</th>`).join("")}<th>Variación</th></tr></thead>
+        <tbody>
+          ${fila("Margen neto (rentabilidad por peso vendido)","margen_neto",4)}
+          ${fila("Rotación de activos (eficiencia)","rotacion_activos",4)}
+          ${fila("Multiplicador del patrimonio (deuda)","multiplicador_patrimonio",4)}
+          <tr style="font-weight:700;border-top:2px solid var(--oro)">
+            <td>ROE reconstruido</td>
+            ${f.roe_reconstruido.map(v=>`<td class="num">${num(v,2)}%</td>`).join("")}<td></td></tr>
+        </tbody>
+      </table></div>
+    </div>
+  </section>`;
+}
+const varClase = v => v==null ? "neutro" : (v>0.5 ? "sube" : v<-0.5 ? "baja" : "neutro");
+
+/* 5 — indicadores */
+function seccionIndicadores(a){
+  const cats = {};
+  a.indicadores.forEach(i => (cats[i.categoria] ||= []).push(i));
+  const bloques = Object.entries(cats).map(([cat, lista]) => `
+    <h3 style="font-size:14px;color:var(--tenue);text-transform:uppercase;
+      letter-spacing:.8px;margin:22px 0 11px">${cat}</h3>
+    <div class="rejilla">${lista.map(tarjetaIndicador).join("")}</div>`).join("");
+  return `
+  <section>
+    <h2><span class="num">7</span>Indicadores</h2>
+    <p class="leyenda">Activa <em>modo docente</em> arriba para ver la fórmula, los insumos
+      y la fuente bibliográfica de cada indicador.</p>
+    ${bloques}
+  </section>`;
+}
+
+function tarjetaIndicador(i){
+  const ini = i.valores[0], fin = i.valores[i.valores.length-1];
+  const mostrar = v => v===null||v===undefined
+      ? '<span class="v nd">no disponible</span>'
+      : `<span class="v">${conUnidad(v, i.unidad)}</span>`;
+  let delta = "";
+  if(ini!=null && fin!=null && i.valores.length>1){
+    const d = fin - ini;
+    const cls = Math.abs(d) < 1e-9 ? "neutro" : (d>0 ? "sube" : "baja");
+    delta = `<span class="delta ${cls}">${d>0?"+":""}${num(d, i.unidad==="monto"?0:2)}</span>`;
+  }
+  const cuerpo = i.valores.length>1
+    ? `${mostrar(ini)}<span class="flecha">→</span>${mostrar(fin)}${delta}`
+    : mostrar(fin);
+  return `
+  <div class="ind">
+    <div class="nom">${esc(i.nombre)}</div>
+    <div class="valores">${cuerpo}</div>
+    <div class="docencia">
+      <div class="campo"><b>Fórmula</b><code>${esc(i.formula)}</code></div>
+      <div class="campo"><b>Insumos</b>${i.insumos.map(rotulo).join(" · ")}</div>
+      ${i.nota ? `<div class="campo"><b>Interpretación</b>${esc(i.nota)}</div>` : ""}
+      ${i.fuente ? `<div class="campo"><b>Fuente</b>${esc(i.fuente)}</div>` : ""}
+    </div>
+  </div>`;
+}
+
+/* 6 — análisis horizontal */
+function seccionHorizontal(a){
+  const tabla = (titulo, filas) => `
+    <h3 style="font-size:14px;color:var(--tenue);text-transform:uppercase;
+      letter-spacing:.8px;margin:22px 0 11px">${titulo}</h3>
+    <div class="tarjeta desplazable"><table>
+      <thead><tr><th>Cuenta</th><th>${a.periodos[0]}</th>
+        <th>${a.periodos[a.periodos.length-1]}</th><th>Absoluta</th><th>Relativa</th></tr></thead>
+      <tbody>${Object.entries(filas).map(([k,f])=>`
+        <tr><td>${rotulo(k)}</td>
+          <td class="num">${num(f.inicial,0)}</td>
+          <td class="num">${num(f.final,0)}</td>
+          <td class="num ${varClase(f.variacion_absoluta)}">${f.variacion_absoluta!=null?(f.variacion_absoluta>0?"+":"")+num(f.variacion_absoluta,0):"—"}</td>
+          <td class="num ${varClase(f.variacion_relativa)}">${f.variacion_relativa!=null?(f.variacion_relativa>0?"+":"")+num(f.variacion_relativa,2)+"%":"—"}</td>
+        </tr>`).join("")}</tbody>
+    </table></div>`;
+  return `
+  <section>
+    <h2><span class="num">8</span>Análisis horizontal</h2>
+    <p class="leyenda">Variación entre el primer y el último período.</p>
+    ${tabla("Estado de resultados", a.horizontal.resultados)}
+    ${tabla("Balance general", a.horizontal.balance)}
+  </section>`;
+}
+
+// ------------------------------------------------------------------ editor
+function pintarEditor(){
+  const per = datosCaso.periodos;
+  const grupo = (clave, titulo) => `
+    <h3 style="font-size:14px;color:var(--tenue);text-transform:uppercase;
+      letter-spacing:.8px;margin:16px 0 8px">${titulo}</h3>
+    <div class="desplazable"><table><thead><tr><th>Cuenta</th>
+      ${per.map(p=>`<th>${p}</th>`).join("")}</tr></thead><tbody>
+      ${Object.keys(datosCaso[clave]).map(k=>`<tr><td>${rotulo(k)}</td>
+        ${per.map((_,i)=>`<td><input type="number" step="any" data-g="${clave}"
+           data-k="${k}" data-i="${i}" value="${datosCaso[clave][k][i] ?? ""}"></td>`).join("")}
+      </tr>`).join("")}
+    </tbody></table></div>`;
+  $("#editor").innerHTML = `
+    <div style="color:var(--suave);font-size:13.5px;margin-bottom:6px">
+      Modifica cualquier cifra y presiona <b>Recalcular</b>. Sirve para probar escenarios:
+      por ejemplo, ¿qué pasa si la cartera baja a 1.200?
+    </div>
+    ${grupo("balance","Balance general")}
+    ${grupo("resultados","Estado de resultados")}`;
+}
+
+function leerEditor(){
+  $("#editor").querySelectorAll("input").forEach(inp=>{
+    const {g,k,i} = inp.dataset;
+    datosCaso[g][k][+i] = inp.value === "" ? null : parseFloat(inp.value);
+  });
+}
+
+// ------------------------------------------------------------------ eventos
+$("#chkDocente").addEventListener("change", e =>
+  document.body.classList.toggle("docente", e.target.checked));
+
+$("#btnEditor").addEventListener("click", () => {
+  const abierto = $("#editor").classList.toggle("abierto");
+  $("#btnRecalcular").style.display = abierto ? "" : "none";
+  $("#btnEditor").textContent = abierto ? "Ocultar editor" : "Editar datos";
+});
+
+$("#btnRecalcular").addEventListener("click", async () => { leerEditor(); await analizar(); });
+$("#selectorCaso").addEventListener("change", e => cargarCaso(e.target.value));
+
+(async () => {
+  try{
+    const salud = await (await fetch("/api/salud")).json();
+    estadoIA = salud.ia || estadoIA;
+  }catch(e){ /* sin conexion: la IA queda apagada */ }
+  await cargarListaCasos();
+})();
+</script>
+</body>
+</html>
