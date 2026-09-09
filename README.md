@@ -28,7 +28,7 @@ números verificables.
 ```
 
 Los cuatro primeros pasos son código determinista: mismas entradas, mismas
-salidas, verificado por 71 pruebas automatizadas. El modelo de lenguaje recibe
+salidas, verificado por 157 pruebas automatizadas. El modelo de lenguaje recibe
 los números ya calculados y su único trabajo es traducirlos a lenguaje que un
 empresario entienda.
 
@@ -102,6 +102,46 @@ alertas.
 
 Cada respuesta cierra con las cifras exactas en las que se apoyó.
 
+### 6. Califica la salud financiera, con la metodología a la vista
+
+Un puntaje de 0 a 100 armado sobre cinco dimensiones ponderadas. La nota de
+cada indicador se calcula como **70% nivel** (frente a un umbral citado de la
+bibliografía) **+ 30% tendencia** (si mejoró o empeoró entre periodos).
+
+Cada indicador se abre en pantalla y muestra el umbral con el que se comparó,
+por qué ese umbral, la fuente bibliográfica, la escala dibujada con una marca
+en el punto donde cayó la empresa, y la cuenta completa de su nota. Un puntaje
+que no se puede auditar no se puede defender.
+
+Si el semáforo de calidad de datos está en rojo, el puntaje sale marcado como
+**no confiable**: la validación sigue siendo puerta previa. En el caso de
+ejemplo son 58,9 sobre 100, frágil y no confiable.
+
+### 7. Dibuja lo que las tablas esconden
+
+Tres gráficas en SVG, sin librerías ni CDN: evolución de los márgenes,
+composición del ciclo de caja como cascada, y qué palanca movió el ROE. El eje
+siempre incluye el cero, para que ninguna barra exagere una diferencia.
+
+### 8. Importa estados financieros desde Excel, CSV o PDF
+
+El problema de importar no es abrir el archivo: es que cada empresa nombra sus
+cuentas distinto. "Deudores comerciales", "Cartera clientes" y "CxC" son la
+misma cosa.
+
+- Lee **.xlsx**, **.csv** y **.pdf** (extrae las tablas, y si el PDF no las
+  tiene, cae al texto renglón por renglón).
+- Entiende los formatos de una contabilidad colombiana: `1.234.567,89`,
+  `$ 2.450`, `(550)` como negativo. Una celda vacía entra como **dato ausente,
+  nunca como cero**.
+- Un diccionario de sinónimos propone el mapeo. Lo que no reconoce se le puede
+  pasar al modelo para que **proponga** una correspondencia; esa propuesta llega
+  marcada como tal, con su nivel de confianza, y **nunca se aplica sola**.
+- Todo pasa por una pantalla de revisión fila por fila. **Nada se calcula hasta
+  que usted confirma.**
+
+El modelo puede opinar sobre cómo se llama una fila, jamás sobre cuánto vale.
+
 ---
 
 ## Instalación
@@ -148,7 +188,7 @@ python -m pytest -v
 ```
 
 ```
-71 passed
+157 passed
 ```
 
 La suite verifica cada fórmula contra un valor calculado a mano, con el cálculo
@@ -176,8 +216,10 @@ palpito/
 │   │   ├── validacion.py    calidad de los datos
 │   │   ├── indicadores.py   26 indicadores + DuPont + puente de caja
 │   │   ├── diagnostico.py   motor de reglas → alertas
+│   │   ├── salud.py         puntaje 0-100 con metodología expuesta
+│   │   ├── importacion.py   lectura de Excel, CSV y PDF
 │   │   └── narrativa.py     única pieza que habla con el modelo
-│   ├── tests/               71 pruebas
+│   ├── tests/               157 pruebas
 │   └── api.py               FastAPI: calcula y sirve la interfaz
 ├── frontend/index.html      interfaz, sin frameworks
 ├── casos/                   casos de ejemplo
@@ -199,6 +241,10 @@ palpito/
 | `POST` | `/api/narrar` | Diagnóstico redactado por IA |
 | `POST` | `/api/preguntar` | Pregunta libre sobre los datos |
 | `GET` | `/api/contexto-ia` | Texto exacto que recibe el modelo (auditoría) |
+| `POST` | `/api/importar` | Lee un Excel, CSV o PDF y propone el mapeo |
+| `POST` | `/api/importar/proponer` | Propuesta del modelo para filas no reconocidas |
+| `POST` | `/api/importar/armar` | Arma los estados con el mapeo ya confirmado |
+| `GET` | `/api/cuentas` | Catálogo de cuentas que entiende el motor |
 
 Documentación interactiva en `/docs`.
 

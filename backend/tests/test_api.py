@@ -114,3 +114,84 @@ def test_la_ia_recibe_el_puntaje_ya_calculado(cliente):
     ctx = cliente.get("/api/contexto-ia").json()["contexto"]
     assert "PUNTAJE DE SALUD FINANCIERA" in ctx
     assert "70% x nivel" in ctx
+
+
+# --------------------------------------------------------------- importacion
+
+
+def _excel_demo():
+    import io as _io
+
+    from openpyxl import Workbook
+
+    libro = Workbook()
+    hoja = libro.active
+    for fila in [
+        ["Cuenta", "2023", "2024"],
+        ["Efectivo y equivalentes", 450, 380],
+        ["Deudores comerciales", 1800, 2400],
+        ["Total activo corriente", 4350, 5680],
+        ["Total pasivo corriente", 2100, 2800],
+        ["Ingresos operacionales", 9800, 11200],
+        ["Utilidad neta", 820, 700],
+        ["Renglon rarisimo XYZ", 10, 20],
+    ]:
+        hoja.append(fila)
+    buffer = _io.BytesIO()
+    libro.save(buffer)
+    return buffer.getvalue()
+
+
+def test_importar_excel_por_http(cliente):
+    r = cliente.post("/api/importar",
+                     files={"archivo": ("balance.xlsx", _excel_demo(),
+                                        "application/vnd.ms-excel")})
+    assert r.status_code == 200
+    tabla = r.json()
+    assert tabla["periodos"] == ["2023", "2024"]
+    asignadas = {f["cuenta"] for f in tabla["filas"] if f["cuenta"]}
+    assert "cuentas_por_cobrar" in asignadas and "ventas" in asignadas
+    # La fila que nadie reconoce queda sin asignar y se avisa, no se adivina.
+    rara = next(f for f in tabla["filas"] if "XYZ" in f["etiqueta"])
+    assert rara["cuenta"] is None
+    assert any("no se reconocieron" in a for a in tabla["avisos"])
+
+
+def test_importar_formato_no_soportado_da_422(cliente):
+    r = cliente.post("/api/importar",
+                     files={"archivo": ("informe.docx", b"cualquier cosa", "text/plain")})
+    assert r.status_code == 422
+    assert "Formato no soportado" in r.json()["detail"]
+
+
+def test_del_archivo_al_analisis_sin_digitar_nada(cliente):
+    """El recorrido completo: subir, armar y analizar.
+
+    Razon corriente 2024 = 5680 / 2800 = 2,0286 veces.
+    """
+    tabla = cliente.post("/api/importar",
+                         files={"archivo": ("b.xlsx", _excel_demo(),
+                                            "application/vnd.ms-excel")}).json()
+    armado = cliente.post("/api/importar/armar",
+                          json={**tabla, "empresa": "Importada S.A."})
+    assert armado.status_code == 200
+    datos = armado.json()
+    assert datos["empresa"] == "Importada S.A."
+
+    analisis = cliente.post("/api/analizar", json=datos).json()
+    rc = next(i for i in analisis["indicadores"] if i["codigo"] == "razon_corriente")
+    assert rc["valores"][1] == pytest.approx(5680 / 2800, abs=1e-4)
+
+
+def test_armar_sin_ninguna_cuenta_asignada_da_422(cliente):
+    r = cliente.post("/api/importar/armar",
+                     json={"periodos": ["2024"],
+                           "filas": [{"cuenta": None, "valores": [1]}]})
+    assert r.status_code == 422
+
+
+def test_catalogo_de_cuentas_para_la_interfaz(cliente):
+    cuentas = cliente.get("/api/cuentas").json()
+    codigos = {c["codigo"] for c in cuentas}
+    assert {"efectivo", "ventas", "patrimonio"} <= codigos
+    assert all(c["grupo"] in ("balance", "resultados") for c in cuentas)

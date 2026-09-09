@@ -14,7 +14,7 @@ import json
 from dataclasses import asdict
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -29,6 +29,7 @@ from motor.indicadores import (
 )
 from motor import narrativa
 from motor.modelos import EstadosFinancieros
+from motor.importacion import CUENTAS, GRUPO, armar_estados, importar
 from motor.salud import puntaje_salud
 from motor.validacion import resumen, semaforo, validar
 
@@ -206,6 +207,77 @@ def contexto_ia(caso_id: str = "comercial_andina"):
         raise HTTPException(404, f"No existe el caso '{caso_id}'.")
     analisis = _analizar(EstadosFinancieros.desde_json(ruta))
     return {"contexto": narrativa.construir_contexto(analisis)}
+
+
+# -------------------------------------------------------------- importacion
+
+MAX_ARCHIVO = 8 * 1024 * 1024   # 8 MB: un estado financiero no pesa mas
+
+
+class EntradaEtiquetas(BaseModel):
+    etiquetas: list[str] = Field(default_factory=list, max_length=60)
+
+
+class EntradaTabla(BaseModel):
+    periodos: list[str]
+    filas: list[dict] = Field(default_factory=list)
+    empresa: str = ""
+    moneda: str = "COP"
+    unidad: str = "millones"
+
+
+@app.post("/api/importar", tags=["importacion"])
+async def importar_archivo(archivo: UploadFile = File(...)):
+    """Lee un Excel, CSV o PDF y devuelve la tabla con un mapeo propuesto.
+
+    No calcula ni valida nada financiero: solo lee. El usuario confirma el
+    mapeo en pantalla y solo entonces se arman los estados financieros.
+    """
+    contenido = await archivo.read()
+    if len(contenido) > MAX_ARCHIVO:
+        raise HTTPException(413, f"El archivo pesa mas de {MAX_ARCHIVO // (1024 * 1024)} MB.")
+    try:
+        tabla = importar(archivo.filename or "", contenido)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    except Exception as exc:  # archivo corrupto, protegido, formato raro
+        raise HTTPException(
+            422, f"No se pudo leer el archivo: {exc}. Si es un PDF escaneado o un "
+                 "Excel protegido, exporte los datos a CSV e intente de nuevo.") from exc
+    return tabla.como_dict()
+
+
+@app.get("/api/cuentas", tags=["importacion"])
+def cuentas_disponibles():
+    """Catalogo de cuentas que entiende el motor, para las listas de la interfaz."""
+    return [{"codigo": c, "grupo": GRUPO[c]} for c in CUENTAS]
+
+
+@app.post("/api/importar/proponer", tags=["importacion"])
+def proponer_mapeo(entrada: EntradaEtiquetas):
+    """Le pide al modelo una propuesta para las filas que el diccionario no reconocio.
+
+    Es clasificacion de texto, no calculo: el modelo mira COMO SE LLAMA la fila,
+    nunca cuanto vale. La propuesta llega marcada y no se aplica sola.
+    """
+    try:
+        return narrativa.proponer_cuentas(entrada.etiquetas, CUENTAS)
+    except RuntimeError as exc:
+        raise HTTPException(503, str(exc)) from exc
+
+
+@app.post("/api/importar/armar", tags=["importacion"])
+def armar_desde_tabla(entrada: EntradaTabla):
+    """Convierte la tabla ya confirmada por el usuario en estados financieros.
+
+    Devuelve el mismo formato de los casos de la carpeta casos/, listo para
+    editarse o analizarse con los endpoints que ya existen.
+    """
+    try:
+        return armar_estados(entrada.model_dump(), empresa=entrada.empresa,
+                             moneda=entrada.moneda, unidad=entrada.unidad)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
 
 
 # ------------------------------------------------------------------ interfaz

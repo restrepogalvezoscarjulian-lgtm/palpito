@@ -14,7 +14,9 @@ Consecuencias practicas:
 
 from __future__ import annotations
 
+import json
 import os
+import re
 
 import httpx
 
@@ -239,3 +241,88 @@ def responder(analisis: dict, pregunta: str) -> dict:
         {"role": "user", "content": f"CONTEXTO:\n{contexto}\n\nPREGUNTA: {pregunta}"},
     ], max_tokens=700)
     return {"disponible": True, "texto": texto, "modelo": modelo(), "motivo": ""}
+
+
+# --------------------------------------------------- propuesta de cuentas
+
+INSTRUCCIONES_CUENTAS = """Eres un asistente contable. Recibes etiquetas de filas de un
+estado financiero y las relacionas con una lista cerrada de codigos de cuenta.
+
+REGLAS ESTRICTAS:
+1. Solo puedes usar codigos de la lista que te dan. Nada inventado.
+2. Si una etiqueta no corresponde con claridad a ningun codigo, responde null.
+   Dejarla sin asignar es la respuesta correcta y esperada muchas veces.
+3. Nunca opines sobre los valores ni los interpretes: solo clasificas nombres.
+4. Un codigo no puede usarse dos veces.
+5. Responde UNICAMENTE un objeto JSON, sin texto alrededor y sin ```:
+   {"asignaciones": [{"etiqueta": "...", "cuenta": "codigo o null", "confianza": "alta|media|baja"}]}
+
+Confianza alta: la etiqueta es un sinonimo claro. Media: encaja pero con
+ambiguedad. Baja: es una conjetura. Ante la duda, baja o null."""
+
+
+def proponer_cuentas(etiquetas: list[str], disponibles: list[str]) -> dict:
+    """Le pide al modelo que proponga a que cuenta corresponde cada etiqueta.
+
+    Es lo unico que el modelo hace en la importacion, y es clasificacion de
+    texto, no calculo: mira COMO SE LLAMA una fila, nunca cuanto vale. La
+    propuesta llega marcada como tal y no se aplica sola: el usuario la
+    confirma o la corrige en pantalla antes de que se calcule nada.
+    """
+    if not disponible():
+        return {"disponible": False, "asignaciones": [], **estado()}
+    etiquetas = [str(e).strip() for e in (etiquetas or []) if str(e).strip()][:60]
+    if not etiquetas:
+        return {"disponible": True, "asignaciones": [], "modelo": modelo(), "motivo": ""}
+
+    peticion = (
+        "CODIGOS DISPONIBLES (no uses ningun otro):\n"
+        + "\n".join(f"- {c}" for c in disponibles)
+        + "\n\nETIQUETAS A CLASIFICAR:\n"
+        + "\n".join(f"- {e}" for e in etiquetas)
+    )
+    crudo = _llamar([
+        {"role": "system", "content": INSTRUCCIONES_CUENTAS},
+        {"role": "user", "content": peticion},
+    ], max_tokens=900)
+
+    asignaciones = _leer_json_asignaciones(crudo, etiquetas, disponibles)
+    return {"disponible": True, "asignaciones": asignaciones,
+            "modelo": modelo(), "motivo": ""}
+
+
+def _leer_json_asignaciones(crudo: str, etiquetas: list[str],
+                            disponibles: list[str]) -> list[dict]:
+    """Lee la respuesta del modelo y descarta todo lo que no cuadre.
+
+    El modelo puede devolver un codigo que no existe, repetir uno o inventarse
+    una etiqueta que nadie le paso. Nada de eso puede llegar a la pantalla, asi
+    que se filtra aqui: lo que no calza se ignora en silencio y esa fila
+    simplemente queda sin propuesta.
+    """
+    texto = (crudo or "").strip()
+    if texto.startswith("```"):
+        texto = re.sub(r"^```[a-z]*\s*|\s*```$", "", texto, flags=re.S)
+    inicio, fin = texto.find("{"), texto.rfind("}")
+    if inicio < 0 or fin <= inicio:
+        return []
+    try:
+        datos = json.loads(texto[inicio:fin + 1])
+    except (json.JSONDecodeError, ValueError):
+        return []
+
+    validas, usadas = [], set()
+    conocidas = {e.strip().lower(): e for e in etiquetas}
+    for item in datos.get("asignaciones") or []:
+        if not isinstance(item, dict):
+            continue
+        etiqueta = conocidas.get(str(item.get("etiqueta", "")).strip().lower())
+        cuenta = item.get("cuenta")
+        if not etiqueta or not cuenta or cuenta not in disponibles or cuenta in usadas:
+            continue
+        confianza = str(item.get("confianza", "baja")).lower()
+        if confianza not in ("alta", "media", "baja"):
+            confianza = "baja"
+        usadas.add(cuenta)
+        validas.append({"etiqueta": etiqueta, "cuenta": cuenta, "confianza": confianza})
+    return validas

@@ -110,6 +110,49 @@
 
 
 
+
+  /* importador de archivos */
+  #importador{display:none;margin-bottom:20px}
+  #importador.abierto{display:block}
+  .soltar{border:2px dashed var(--borde);border-radius:11px;padding:26px 20px;
+    text-align:center;color:var(--suave);transition:border-color .15s,background .15s}
+  .soltar.encima{border-color:var(--oro);background:rgba(217,164,65,.06)}
+  .soltar b{color:var(--texto);display:block;margin-bottom:5px;font-size:15px}
+  .soltar .formatos{color:var(--tenue);font-size:12px;margin-top:9px;font-family:var(--mono)}
+  .soltar button{margin-top:13px}
+
+  .imp-cabeza{display:flex;justify-content:space-between;align-items:baseline;
+    gap:14px;flex-wrap:wrap;margin-bottom:12px}
+  .imp-cabeza h3{margin:0;font-size:16px}
+  .imp-cabeza .archivo{color:var(--tenue);font-size:12px;font-family:var(--mono)}
+  .conteo-mapeo{font-size:13px;color:var(--suave)}
+  .conteo-mapeo b{font-family:var(--mono);color:var(--texto)}
+
+  .imp-meta{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0}
+  .imp-meta label{display:flex;flex-direction:column;gap:4px;font-size:11px;
+    color:var(--tenue);text-transform:uppercase;letter-spacing:.5px}
+  .imp-meta input{background:var(--panel2);border:1px solid var(--borde);
+    color:var(--texto);border-radius:6px;padding:7px 10px;font-size:13.5px;
+    font-family:inherit;min-width:150px}
+  .imp-meta input:focus{outline:none;border-color:var(--oro)}
+  .imp-meta input.periodo{min-width:96px;font-family:var(--mono);text-align:center}
+
+  table.mapeo td{vertical-align:middle}
+  table.mapeo select{padding:5px 8px;font-size:12.5px;width:100%;max-width:230px}
+  table.mapeo .cifra{font-family:var(--mono);font-size:12.5px;color:var(--suave)}
+  table.mapeo .etiqueta{max-width:270px}
+  table.mapeo .etiqueta .orig{font-size:11px;color:var(--tenue);font-family:var(--mono)}
+  table.mapeo tr.libre{opacity:.62}
+  table.mapeo tr.libre:hover{opacity:1}
+  .sello-origen{font-size:10px;font-weight:700;letter-spacing:.5px;padding:2px 6px;
+    border-radius:4px;text-transform:uppercase;white-space:nowrap}
+  .sello-origen.diccionario{background:rgba(96,165,250,.16);color:var(--azul)}
+  .sello-origen.modelo{background:rgba(217,164,65,.16);color:var(--oro)}
+  .sello-origen.usuario{background:rgba(74,222,128,.16);color:var(--verde)}
+  .sello-origen.baja{background:rgba(248,113,113,.16);color:var(--rojo)}
+  .imp-acciones{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px;
+    padding-top:16px;border-top:1px solid var(--borde);align-items:center}
+  .imp-acciones .apagado{margin-left:auto}
   /* puntaje de salud */
   .salud-cabeza{display:flex;gap:24px;align-items:center;flex-wrap:wrap}
   .anillo{flex:none;width:132px;height:132px}
@@ -220,6 +263,7 @@
 
   <div class="barra">
     <select id="selectorCaso"></select>
+    <button id="btnImportar">Cargar archivo</button>
     <button id="btnEditor">Editar datos</button>
     <button class="primario" id="btnRecalcular" style="display:none">Recalcular</button>
     <label class="interruptor">
@@ -227,6 +271,7 @@
     </label>
   </div>
 
+  <div id="importador" class="tarjeta"></div>
   <div id="editor" class="tarjeta"></div>
   <div id="contenido"><div class="cargando">Cargando análisis…</div></div>
 
@@ -531,6 +576,234 @@ function seccionDupont(a){
   </section>`;
 }
 const varClase = v => v==null ? "neutro" : (v>0.5 ? "sube" : v<-0.5 ? "baja" : "neutro");
+
+/* ------------------------------------------------------------ importador
+   Cargar un archivo NO analiza nada por su cuenta. Lee, propone un mapeo y se
+   detiene a que el usuario lo revise fila por fila. Solo cuando él confirma se
+   arman los estados financieros y se calcula. La propuesta del modelo, cuando
+   se pide, llega marcada como propuesta y se puede corregir en el mismo sitio. */
+
+let tablaImportada = null;   // lo leído del archivo, con el mapeo en curso
+let catalogoCuentas = null;  // cuentas que entiende el motor
+
+async function cuentas(){
+  if(!catalogoCuentas) catalogoCuentas = await (await fetch("/api/cuentas")).json();
+  return catalogoCuentas;
+}
+
+function pintarSoltar(mensaje){
+  $("#importador").innerHTML = `
+    <div class="soltar" id="zonaSoltar">
+      <b>Arrastre aquí el archivo, o búsquelo</b>
+      Estados financieros de la empresa que quiere analizar.
+      <div><button class="primario" id="btnElegir">Buscar archivo</button></div>
+      <input type="file" id="archivoOculto" accept=".xlsx,.xlsm,.csv,.txt,.pdf" hidden>
+      <div class="formatos">Excel (.xlsx) · CSV (.csv) · PDF (.pdf) · hasta 8 MB</div>
+    </div>
+    ${mensaje || ""}`;
+  conectarSoltar();
+}
+
+function conectarSoltar(){
+  const zona = $("#zonaSoltar"), input = $("#archivoOculto");
+  if(!zona) return;
+  $("#btnElegir").addEventListener("click", () => input.click());
+  input.addEventListener("change", () => { if(input.files[0]) subir(input.files[0]); });
+  ["dragenter","dragover"].forEach(ev => zona.addEventListener(ev, e => {
+    e.preventDefault(); zona.classList.add("encima");
+  }));
+  ["dragleave","drop"].forEach(ev => zona.addEventListener(ev, e => {
+    e.preventDefault(); zona.classList.remove("encima");
+  }));
+  zona.addEventListener("drop", e => {
+    const f = e.dataTransfer.files[0];
+    if(f) subir(f);
+  });
+}
+
+async function subir(archivo){
+  $("#importador").innerHTML = `<div class="cargando">Leyendo ${esc(archivo.name)}…</div>`;
+  const cuerpo = new FormData();
+  cuerpo.append("archivo", archivo);
+  let r;
+  try{
+    r = await fetch("/api/importar", {method:"POST", body: cuerpo});
+  }catch(e){
+    return pintarSoltar(`<div class="tarjeta semaforo rojo" style="margin-top:14px">
+      <h3>No se pudo enviar el archivo</h3><div>${esc(e.message)}</div></div>`);
+  }
+  if(!r.ok){
+    const err = await r.json().catch(() => ({detail:"Error desconocido"}));
+    return pintarSoltar(`<div class="tarjeta semaforo rojo" style="margin-top:14px">
+      <h3>No se pudo leer el archivo</h3><div>${esc(err.detail)}</div></div>`);
+  }
+  tablaImportada = await r.json();
+  tablaImportada.empresa = archivo.name.replace(/\.[^.]+$/, "");
+  await pintarMapeo();
+}
+
+function selectorCuenta(fila, indice, catalogo){
+  const opcion = c => `<option value="${c.codigo}"${c.codigo === fila.cuenta ? " selected" : ""}>${esc(rotulo(c.codigo))}</option>`;
+  const balance = catalogo.filter(c => c.grupo === "balance").map(opcion).join("");
+  const resultados = catalogo.filter(c => c.grupo === "resultados").map(opcion).join("");
+  return `<select data-fila="${indice}">
+    <option value=""${fila.cuenta ? "" : " selected"}>— no usar esta fila —</option>
+    <optgroup label="Balance general">${balance}</optgroup>
+    <optgroup label="Estado de resultados">${resultados}</optgroup>
+  </select>`;
+}
+
+function selloDe(fila){
+  if(!fila.cuenta) return "";
+  const quien = fila.asignado_por || "usuario";
+  const clase = fila.confianza === "baja" ? "baja" : quien;
+  const texto = {diccionario:"diccionario", modelo:"propuesta del modelo", usuario:"usted"}[quien] || quien;
+  const conf = fila.confianza && quien !== "usuario" ? ` · ${fila.confianza}` : "";
+  return `<span class="sello-origen ${clase}">${esc(texto)}${esc(conf)}</span>`;
+}
+
+async function pintarMapeo(){
+  const t = tablaImportada, catalogo = await cuentas();
+  const asignadas = t.filas.filter(f => f.cuenta).length;
+  const libres = t.filas.length - asignadas;
+
+  const filas = t.filas.map((f, i) => `
+    <tr class="${f.cuenta ? "" : "libre"}">
+      <td class="etiqueta">${esc(f.etiqueta)}
+        ${f.origen ? `<div class="orig">${esc(f.origen)}</div>` : ""}
+        ${f.nota ? `<div class="detalle">${esc(f.nota)}</div>` : ""}</td>
+      ${t.periodos.map((_, p) => `<td class="cifra">${f.valores[p] === undefined || f.valores[p] === null ? "—" : num(f.valores[p], 0)}</td>`).join("")}
+      <td>${selectorCuenta(f, i, catalogo)}</td>
+      <td>${selloDe(f)}</td>
+    </tr>`).join("");
+
+  $("#importador").innerHTML = `
+    <div class="imp-cabeza">
+      <div>
+        <h3>Revise antes de calcular</h3>
+        <div class="archivo">${esc(t.origen)}</div>
+      </div>
+      <div class="conteo-mapeo"><b>${asignadas}</b> de <b>${t.filas.length}</b> filas
+        asignadas${libres ? ` · ${libres} sin usar` : ""}</div>
+    </div>
+
+    ${(t.avisos || []).map(a => `<div class="aviso">⚠ ${esc(a)}</div>`).join("")}
+
+    <div class="imp-meta">
+      <label>Empresa<input id="impEmpresa" value="${esc(t.empresa || "")}"></label>
+      <label>Unidad<input id="impUnidad" value="${esc(t.unidad || "millones")}"></label>
+      <label>Moneda<input id="impMoneda" value="${esc(t.moneda || "COP")}"></label>
+      ${t.periodos.map((p, i) => `<label>Periodo ${i + 1}
+        <input class="periodo" data-periodo="${i}" value="${esc(p)}"></label>`).join("")}
+    </div>
+
+    <div class="desplazable"><table class="mapeo">
+      <thead><tr><th>Fila del archivo</th>
+        ${t.periodos.map(p => `<th>${esc(p)}</th>`).join("")}
+        <th>Se usará como</th><th>Lo asignó</th></tr></thead>
+      <tbody>${filas}</tbody>
+    </table></div>
+
+    <div class="imp-acciones">
+      <button class="primario" id="btnUsar">Usar estos datos</button>
+      ${libres && estadoIA.disponible
+        ? `<button id="btnProponer">Proponerme las ${libres} que faltan</button>` : ""}
+      <button id="btnOtroArchivo">Cargar otro archivo</button>
+      <span class="apagado">Nada se calcula hasta que presione <b>Usar estos datos</b>.</span>
+    </div>`;
+
+  conectarMapeo();
+}
+
+function conectarMapeo(){
+  $("#importador").querySelectorAll("select[data-fila]").forEach(sel => {
+    sel.addEventListener("change", () => {
+      const i = +sel.dataset.fila, valor = sel.value || null;
+      // Una cuenta no puede quedar en dos filas: si la toma otra, se libera.
+      if(valor) tablaImportada.filas.forEach((f, j) => {
+        if(j !== i && f.cuenta === valor){
+          f.cuenta = null; f.asignado_por = ""; f.confianza = "";
+          f.nota = "Quedó libre: esa cuenta se la asignó a otra fila.";
+        }
+      });
+      const fila = tablaImportada.filas[i];
+      fila.cuenta = valor;
+      fila.asignado_por = valor ? "usuario" : "";
+      fila.confianza = "";
+      fila.nota = "";
+      pintarMapeo();
+    });
+  });
+
+  $("#importador").querySelectorAll("input[data-periodo]").forEach(inp => {
+    inp.addEventListener("change", () => {
+      tablaImportada.periodos[+inp.dataset.periodo] = inp.value.trim() || inp.dataset.periodo;
+    });
+  });
+
+  const btnProponer = $("#btnProponer");
+  if(btnProponer) btnProponer.addEventListener("click", proponerConModelo);
+  $("#btnOtroArchivo").addEventListener("click", () => pintarSoltar(""));
+  $("#btnUsar").addEventListener("click", usarImportado);
+}
+
+async function proponerConModelo(){
+  const btn = $("#btnProponer");
+  btn.disabled = true;
+  btn.textContent = "Preguntándole al modelo…";
+  const pendientes = tablaImportada.filas.filter(f => !f.cuenta).map(f => f.etiqueta);
+  try{
+    const r = await fetch("/api/importar/proponer", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({etiquetas: pendientes}),
+    });
+    const datos = await r.json();
+    const tomadas = new Set(tablaImportada.filas.filter(f => f.cuenta).map(f => f.cuenta));
+    let puestas = 0;
+    (datos.asignaciones || []).forEach(a => {
+      if(tomadas.has(a.cuenta)) return;
+      const fila = tablaImportada.filas.find(f => !f.cuenta && f.etiqueta === a.etiqueta);
+      if(!fila) return;
+      fila.cuenta = a.cuenta;
+      fila.asignado_por = "modelo";
+      fila.confianza = a.confianza;
+      fila.nota = "Propuesta del modelo, sin confirmar. Revísela.";
+      tomadas.add(a.cuenta);
+      puestas++;
+    });
+    await pintarMapeo();
+    if(!puestas) $("#importador").insertAdjacentHTML("afterbegin",
+      `<div class="aviso">⚠ El modelo no encontró correspondencia clara para
+       ninguna de las filas que faltaban. Asígnelas a mano o déjelas sin usar.</div>`);
+  }catch(e){
+    btn.disabled = false;
+    btn.textContent = "Reintentar la propuesta";
+  }
+}
+
+async function usarImportado(){
+  const t = tablaImportada;
+  t.empresa = $("#impEmpresa").value.trim() || "Empresa importada";
+  t.unidad  = $("#impUnidad").value.trim()  || "millones";
+  t.moneda  = $("#impMoneda").value.trim()  || "COP";
+
+  const r = await fetch("/api/importar/armar", {
+    method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify(t),
+  });
+  if(!r.ok){
+    const err = await r.json().catch(() => ({detail:"Error desconocido"}));
+    return $("#importador").insertAdjacentHTML("afterbegin",
+      `<div class="aviso">⚠ ${esc(err.detail)}</div>`);
+  }
+
+  datosCaso = await r.json();
+  $("#importador").classList.remove("abierto");
+  $("#btnImportar").textContent = "Cargar archivo";
+  $("#selectorCaso").value = "";
+  await analizar();
+  pintarEditor();
+}
 
 /* 2 — puntaje de salud financiera
    El puntaje, las notas y las ponderaciones vienen calculados del motor. Lo
@@ -1004,6 +1277,12 @@ $("#btnEditor").addEventListener("click", () => {
   const abierto = $("#editor").classList.toggle("abierto");
   $("#btnRecalcular").style.display = abierto ? "" : "none";
   $("#btnEditor").textContent = abierto ? "Ocultar editor" : "Editar datos";
+});
+
+$("#btnImportar").addEventListener("click", () => {
+  const abierto = $("#importador").classList.toggle("abierto");
+  $("#btnImportar").textContent = abierto ? "Ocultar carga" : "Cargar archivo";
+  if(abierto && !$("#zonaSoltar") && !tablaImportada) pintarSoltar("");
 });
 
 $("#btnRecalcular").addEventListener("click", async () => { leerEditor(); await analizar(); });
