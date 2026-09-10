@@ -503,3 +503,43 @@ def test_una_pyme_normal_no_dispara_ninguna_de_estas_alarmas():
             datos = json.load(fh)
         h = validar(EstadosFinancieros(datos))
         assert not [x for x in h if x.codigo == "CATALOGO_NO_ENCAJA"], caso
+
+
+# ------------------------------------------------ el puente de caja y el signo
+#
+# El ensayo del 10-sep-2026 mostro en pantalla "Consumido por activos fijos:
+# --103.328". El signo doble era el sintoma; lo de fondo era peor: la etiqueta
+# decia lo contrario de lo que paso. En Almacenes Exito 2025 los activos fijos
+# netos BAJARON, o sea que esa partida libero caja en vez de consumirla.
+#
+# Importa mas de lo que parece porque narrativa usa la misma funcion para armar
+# el contexto del modelo: con la etiqueta al reves, la IA redacta al reves, y la
+# regla de la aplicacion es que el modelo recibe numeros ya resueltos.
+
+
+def test_una_partida_que_sube_consume_caja():
+    from motor.diagnostico import renglon_de_caja
+    assert renglon_de_caja("activos fijos", 103328) == "Consumido por activos fijos: -103,328"
+
+
+def test_una_partida_que_baja_libera_caja():
+    from motor.diagnostico import renglon_de_caja
+    linea = renglon_de_caja("activos fijos", -103328)
+    assert linea == "Liberado por activos fijos: +103,328"
+    assert "--" not in linea, "el signo doble volvio"
+
+
+def test_sin_dato_no_se_inventa_una_direccion():
+    from motor.diagnostico import renglon_de_caja
+    linea = renglon_de_caja("activos fijos", None)
+    assert "n/d" in linea
+    assert "Consumido" not in linea and "Liberado" not in linea
+
+
+def test_la_evidencia_de_las_alertas_nunca_trae_signo_doble(ef):
+    """Lo que se le muestra al usuario y lo que se le manda al modelo."""
+    for a in diagnosticar(ef):
+        for linea in a.evidencia:
+            assert "--" not in linea, f"signo doble en: {linea}"
+            assert "+-" not in linea, f"signos contradictorios en: {linea}"
+            assert "-+" not in linea, f"signos contradictorios en: {linea}"

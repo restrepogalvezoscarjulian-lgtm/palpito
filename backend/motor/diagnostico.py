@@ -21,6 +21,29 @@ def _fmt(v, unidad="", dec=2):
     return f"{txt}{unidad}"
 
 
+def renglon_de_caja(que: str, v, fmt=None) -> str:
+    """Un renglon del puente de caja, con la palabra que el numero merece.
+
+    Anteponer un "-" fijo daba por hecho que estas partidas SIEMPRE consumen
+    caja. No es cierto: si el capital de trabajo baja, o si la depreciacion
+    supera a la inversion del ano, la partida LIBERA caja. En Almacenes Exito
+    2025 los activos fijos netos bajaron 103.328 y el renglon salia como
+    "Consumido por activos fijos: --103.328": el signo doble era el sintoma, y
+    lo de fondo era que la etiqueta decia lo contrario de lo que paso.
+
+    Vive aqui y la usa tambien narrativa, a proposito: ese modulo arma el
+    contexto que se le manda al modelo. Si al modelo le llega "Consumido" sobre
+    una partida que libero caja, va a redactar lo contrario de lo que ocurrio, y
+    la regla de la aplicacion es que el modelo recibe numeros YA RESUELTOS.
+    """
+    f = fmt or (lambda x: _fmt(x, "", 0))
+    if v is None:
+        return f"{que[:1].upper()}{que[1:]}: n/d"
+    if v < 0:
+        return f"Liberado por {que}: +{f(-v)}"
+    return f"Consumido por {que}: -{f(v)}"
+
+
 def diagnosticar(ef: EstadosFinancieros) -> list[Alerta]:
     """Evalua todas las reglas y devuelve las alertas ordenadas por prioridad."""
     ind = calcular_todos(ef)
@@ -127,7 +150,7 @@ def _regla_ciclo_caja_se_alarga(ef, ind, hor) -> Alerta | None:
         ev.append(f"Además se le paga MÁS RÁPIDO a proveedores: {_fmt(dp[0], ' días', 1)} -> {_fmt(dp[-1], ' días', 1)}")
     return Alerta(
         prioridad=2,
-        titulo="El ciclo de conversion de efectivo se alargo",
+        titulo="El ciclo de conversión de efectivo se alargó",
         explicacion=(
             "La plata pasa más días fuera de la caja. Cada día adicional del ciclo "
             "obliga a financiar más capital de trabajo, con deuda o con recursos propios."
@@ -166,8 +189,8 @@ def _regla_cobertura_intereses(ef, ind, hor) -> Alerta | None:
     critica = c[-1] < 2
     return Alerta(
         prioridad=1 if critica else 3,
-        titulo=("Cobertura de intereses en zona critica" if critica
-                else "La cobertura de intereses se deterioro"),
+        titulo=("Cobertura de intereses en zona crítica" if critica
+                else "La cobertura de intereses se deterioró"),
         explicacion=(
             "Mide cuántas veces la operación alcanza a pagar los intereses. "
             "Por debajo de 2 veces, cualquier tropiezo operativo compromete el pago de la deuda."
@@ -187,7 +210,7 @@ def _regla_calidad_liquidez(ef, ind, hor) -> Alerta | None:
         return None
     return Alerta(
         prioridad=2,
-        titulo="La liquidez parece estable pero su calidad se deterioro",
+        titulo="La liquidez parece estable pero su calidad se deterioró",
         explicacion=(
             "La razón corriente casi no se movio, así que a primera vista todo esta bien. "
             "Pero el activo corriente crecio a punta de cartera e inventario (lo lento) "
@@ -214,17 +237,17 @@ def _regla_flujo_caja_negativo(ef, ind, hor) -> Alerta | None:
         prioridad=1,
         titulo="La operación no generó caja suficiente para financiarse sola",
         explicacion=(
-            "Esta es la respuesta a 'vendi más pero tengo menos plata'. La utilidad "
-            "operativa después de impuestos no alcanzo a cubrir lo que se tragaron el "
-            "capital de trabajo y la inversión en activos fijos. La diferencia se cubrio "
+            "Esta es la respuesta a 'vendí más pero tengo menos plata'. La utilidad "
+            "operativa después de impuestos no alcanzó a cubrir lo que se tragaron el "
+            "capital de trabajo y la inversión en activos fijos. La diferencia se cubrió "
             "con deuda y con el efectivo que había en caja."
         ),
         evidencia=[
             f"UODI generada: {_fmt(u, '', 0)}",
-            f"Consumido por aumento del KTNO: -{_fmt(k, '', 0)}",
-            f"Consumido por activos fijos: -{_fmt(a, '', 0)}",
+            renglon_de_caja("aumento del KTNO", k),
+            renglon_de_caja("activos fijos", a),
             f"Flujo de caja libre aproximado: {_fmt(p['flujo_caja_libre_aprox'], '', 0)}",
-            f"Deuda financiera: +{_fmt(p['variacion_deuda_financiera'], '', 0)}",
+            f"Deuda financiera: {_fmt(p['variacion_deuda_financiera'], '', 0)}",
             f"Efectivo: {_fmt(p['variacion_efectivo'], '', 0)}",
         ],
         cuentas=["cuentas_por_cobrar", "inventarios", "proveedores",

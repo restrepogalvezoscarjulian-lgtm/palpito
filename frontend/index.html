@@ -1212,6 +1212,22 @@ function seccionDiagnostico(a){
 }
 
 /* 3 — puente de caja */
+/* Un renglón del puente de caja. La palabra la decide el signo del número, no
+   el sitio donde va: si el capital de trabajo baja, o si la depreciación supera
+   a la inversión del año, la partida LIBERA caja en vez de consumirla. Con un
+   "−" fijo delante, Éxito 2025 mostraba "− Consumido por inversión en activos
+   fijos  −−103.328": dos signos y una etiqueta que decía lo contrario de lo que
+   pasó. Misma regla que diagnostico.renglon_de_caja en el motor. */
+function renglonDeCaja(que, v){
+  if(v === null || v === undefined)
+    return `<div class="fila"><span>${que}</span><span class="apagado">n/d</span></div>`;
+  const libera = v < 0;
+  return `<div class="fila">
+    <span>${libera ? "+ Liberado por" : "− Consumido por"} ${que}</span>
+    <span style="color:var(--${libera ? "verde" : "rojo"})">${libera ? "+" : "−"}${num(Math.abs(v),0)}</span>
+  </div>`;
+}
+
 function seccionPuente(a){
   const p = a.puente_caja;
   if(!p.disponible) return "";
@@ -1226,10 +1242,8 @@ function seccionPuente(a){
     <div class="tarjeta puente">
       <div class="fila"><span>UODI generada por la operación</span>
         <span>${signo(p.uodi)}</span></div>
-      <div class="fila"><span>− Consumido por el aumento del capital de trabajo (KTNO)</span>
-        <span style="color:var(--rojo)">−${num(p.aumento_ktno,0)}</span></div>
-      <div class="fila"><span>− Consumido por inversión en activos fijos</span>
-        <span style="color:var(--rojo)">−${num(p.aumento_activos_fijos_neto,0)}</span></div>
+      ${renglonDeCaja("el aumento del capital de trabajo (KTNO)", p.aumento_ktno)}
+      ${renglonDeCaja("inversión en activos fijos", p.aumento_activos_fijos_neto)}
       <div class="fila total"><span>Flujo de caja libre aproximado</span>
         <span style="color:${color}">${signo(fcl)}</span></div>
       <div style="margin-top:16px">

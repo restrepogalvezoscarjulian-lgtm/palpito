@@ -20,6 +20,8 @@ import re
 
 import httpx
 
+from .diagnostico import renglon_de_caja
+
 URL_OPENROUTER = "https://openrouter.ai/api/v1/chat/completions"
 MODELO_POR_DEFECTO = "deepseek/deepseek-v4-flash"
 TIEMPO_LIMITE = 60.0
@@ -148,11 +150,13 @@ def construir_contexto(analisis: dict) -> str:
     if p.get("disponible"):
         L.append("\n== PUENTE DE CAJA ==")
         L.append(f"UODI generada: {_fmt(p['uodi'], 'monto')}")
-        L.append(f"Consumido por aumento del KTNO: -{_fmt(p['aumento_ktno'], 'monto')}")
-        L.append(f"Consumido por activos fijos: -{_fmt(p['aumento_activos_fijos_neto'], 'monto')}")
+        # Misma regla que la alerta: la palabra la decide el signo del numero.
+        monto = lambda x: _fmt(x, "monto")
+        L.append(renglon_de_caja("aumento del KTNO", p["aumento_ktno"], monto))
+        L.append(renglon_de_caja("activos fijos", p["aumento_activos_fijos_neto"], monto))
         L.append(f"Flujo de caja libre aproximado: {_fmt(p['flujo_caja_libre_aprox'], 'monto')}")
-        L.append(f"Variacion de la deuda financiera: {_fmt(p['variacion_deuda_financiera'], 'monto')}")
-        L.append(f"Variacion del efectivo: {_fmt(p['variacion_efectivo'], 'monto')}")
+        L.append(f"Variación de la deuda financiera: {_fmt(p['variacion_deuda_financiera'], 'monto')}")
+        L.append(f"Variación del efectivo: {_fmt(p['variacion_efectivo'], 'monto')}")
         if p.get("es_aproximacion"):
             L.append(f"ADVERTENCIA: {p['advertencia']}")
 
