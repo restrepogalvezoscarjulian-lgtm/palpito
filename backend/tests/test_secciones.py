@@ -222,3 +222,61 @@ def test_reconoce_los_nombres_alternos_del_balance():
         cuerpo = f"{titulo}\nTotal activo 100\nTotal pasivo 40\nTotal patrimonio 60\n"
         r = analizar_paginas([RELLENO, cuerpo, RESULTADOS])
         assert r["encontrado"] is True, titulo
+
+
+# ------------------- prosa que menciona los estados (Grupo Bolivar 2024)
+
+# El titulo real que trae un informe consolidado: con una palabra en la mitad.
+BALANCE_CONSOLIDADO = """Grupo Ejemplo S.A. Y Subsidiarias
+Estado Consolidado de Situación Financiera
+(Millones de pesos colombianos)
+Efectivo y equivalentes de efectivo 13 16.688.209 15.470.751
+Total activo 203.007.173 190.114.552
+Total pasivo 183.859.259 172.010.121
+Total patrimonio 19.147.914 18.104.431
+"""
+
+# Una nota en prosa. Menciona los estados por su nombre -como hace toda nota
+# contable- pero no trae un solo saldo.
+NOTA_QUE_MENCIONA = """NOTAS A LOS ESTADOS FINANCIEROS CONSOLIDADOS 2024
+La ganancia o pérdida generada se reconoce en el estado de resultados del
+periodo en que ocurre. Los activos que cumplen las condiciones se presentan
+en el estado de situación financiera al cierre.
+"""
+
+
+def test_un_titulo_con_una_palabra_en_la_mitad_se_reconoce():
+    """"Estado CONSOLIDADO de Situación Financiera". Buscando la frase seguida,
+    el estado verdadero sacaba cero puntos de titulo.
+    """
+    r = analizar_paginas([RELLENO] * 13 + [BALANCE_CONSOLIDADO, RESULTADOS])
+    assert r["encontrado"] is True
+    assert r["paginas"].startswith("14"), r["paginas"]
+
+
+def test_la_prosa_de_las_notas_no_le_gana_al_estado_verdadero():
+    """El caso Grupo Bolivar 2024: tres paginas seguidas de notas decian "se
+    reconoce en el estado de resultados" y sumaban 12 puntos como bloque,
+    contra los 4 del balance verdadero de la pagina 14.
+
+    Sumar prosa no hace un estado financiero: solo las paginas con renglones de
+    saldo forman bloque.
+    """
+    paginas = (
+        [RELLENO] * 13
+        + [BALANCE_CONSOLIDADO, RESULTADOS]
+        + [RELLENO] * 48
+        + [NOTA_QUE_MENCIONA] * 3
+        + [RELLENO] * 5
+    )
+    r = analizar_paginas(paginas)
+    assert r["paginas"] == "14-15", f"eligio las notas: {r['paginas']}"
+
+
+def test_una_nota_suelta_no_forma_bloque_con_la_siguiente():
+    bloques = analizar_paginas(
+        [RELLENO] * 13 + [BALANCE_CONSOLIDADO, RESULTADOS]
+        + [RELLENO] * 20 + [NOTA_QUE_MENCIONA] * 4
+    )["bloques"]
+    for b in bloques:
+        assert len(b["paginas"]) == 1 or min(b["paginas"]) < 20, b

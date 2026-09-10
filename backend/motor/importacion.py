@@ -242,12 +242,29 @@ def parece_periodo(texto) -> str | None:
     t = str(texto).strip()
     if not t:
         return None
-    anios = re.findall(r"(19|20)\d{2}", t)
-    if not anios:
-        return None
     completo = re.findall(r"(?:19|20)\d{2}", t)
-    if len(completo) == 1 and len(t) <= 24:
-        return t if len(t) <= 12 else completo[0]
+    if not completo:
+        return None
+
+    # Palabras de relleno que sobran en los bordes. El encabezado de un estado
+    # publicado viene partido en varias lineas y el pedazo que trae los anios
+    # llega solo: el consolidado de Grupo Bolivar produce "de 2025 de 2024", y
+    # de ahi salia el periodo "de 2025 de", que no es un ano ni sirve para
+    # comparar dos archivos entre si.
+    relleno = r"(?:de|del|al|a|ano|anio|year|fy)"
+    limpio = re.sub(rf"^\s*(?:{relleno}\b[\s.,:-]*)+", "", t, flags=re.I)
+    limpio = re.sub(rf"[\s.,:-]*(?:\b{relleno}(?![\w])[\s.,:-]*)+$", "", limpio, flags=re.I)
+    limpio = limpio.strip(" .,:-") or t
+
+    if len(completo) == 1:
+        # Si al quitar el relleno solo queda el ano, ese es el periodo. Si
+        # queda algo mas -"Dic-2024", "FY2024 (proyectado)"- se respeta, porque
+        # puede estar diciendo algo que el ano solo no dice.
+        if limpio == completo[0]:
+            return completo[0]
+        if len(limpio) <= 12:
+            return limpio
+        return completo[0]
     return completo[-1]
 
 
@@ -987,3 +1004,117 @@ def armar_estados(tabla_cruda: dict, empresa: str = "", moneda: str = "COP",
     if ajustes:
         datos["supuestos"] = {"ajustes_importacion": ajustes}
     return datos
+
+
+# ------------------------------------------------------- fundir varios años
+
+
+def _clave_de_orden(periodo: str):
+    """Ordena periodos por el año que nombren, y si no, alfabeticamente.
+
+    Un encabezado real no siempre es un año limpio: el consolidado de Grupo
+    Bolivar parte su encabezado en tres lineas y produce "de 2025 de".
+    """
+    anios = re.findall(r"(?:19|20)\d{2}", str(periodo))
+    return (0, int(anios[-1]), str(periodo)) if anios else (1, 0, str(periodo))
+
+
+def fundir_estados(base: dict, nuevo: dict, conservar: str = "base") -> dict:
+    """Une los periodos de dos juegos de estados de la MISMA empresa.
+
+    Un informe anual trae dos años: el de 2025 trae 2025 y 2024, y el de 2024
+    trae 2024 y 2023. Juntando los dos archivos se ven tres años, que es lo que
+    hace falta para leer una tendencia. Con dos años solo se ve un salto.
+
+    El año repetido -2024 en el ejemplo- NO se resuelve solo. Las empresas
+    reexpresan cifras de un informe al siguiente, asi que las dos versiones
+    pueden diferir de verdad. Quien decide es el usuario: `conservar` dice si
+    manda el juego que ya estaba ("base") o el que llega ("nuevo").
+
+    Devuelve los estados unidos y, en `fusion`, el detalle de lo que paso, para
+    que se pueda mostrar en pantalla en vez de ocurrir en silencio.
+    """
+    if conservar not in ("base", "nuevo"):
+        raise ValueError("conservar debe ser 'base' o 'nuevo'.")
+
+    per_base = [str(p) for p in base.get("periodos") or []]
+    per_nuevo = [str(p) for p in nuevo.get("periodos") or []]
+    if not per_base or not per_nuevo:
+        raise ValueError("Los dos juegos de estados deben declarar periodos.")
+
+    repetidos = [p for p in per_nuevo if p in per_base]
+    agregados = [p for p in per_nuevo if p not in per_base]
+
+    periodos = sorted(set(per_base) | set(per_nuevo), key=_clave_de_orden)
+    if len(periodos) > MAX_PERIODOS:
+        # Se conservan los mas recientes: son los que sirven para proyectar.
+        periodos = periodos[-MAX_PERIODOS:]
+
+    def indice(lista, periodo):
+        return lista.index(periodo) if periodo in lista else None
+
+    unido = {
+        "empresa": base.get("empresa") or nuevo.get("empresa") or "Empresa importada",
+        "moneda": base.get("moneda") or nuevo.get("moneda") or "COP",
+        "unidad": base.get("unidad") or nuevo.get("unidad") or "millones",
+        "periodos": periodos,
+        "balance": {},
+        "resultados": {},
+    }
+
+    for grupo in ("balance", "resultados"):
+        cuentas = list(dict.fromkeys(
+            list((base.get(grupo) or {}).keys()) + list((nuevo.get(grupo) or {}).keys())))
+        for cuenta in cuentas:
+            vb = (base.get(grupo) or {}).get(cuenta) or []
+            vn = (nuevo.get(grupo) or {}).get(cuenta) or []
+            fila = []
+            for p in periodos:
+                ib, inv = indice(per_base, p), indice(per_nuevo, p)
+                x = vb[ib] if ib is not None and ib < len(vb) else None
+                y = vn[inv] if inv is not None and inv < len(vn) else None
+                # Con los dos presentes manda la eleccion del usuario; con uno
+                # solo, ese. Nunca se promedia: promediar seria inventar.
+                if x is not None and y is not None:
+                    fila.append(x if conservar == "base" else y)
+                else:
+                    fila.append(x if x is not None else y)
+            if any(v is not None for v in fila):
+                unido[grupo][cuenta] = fila
+
+    avisos = list((base.get("supuestos") or {}).get("ajustes_importacion") or [])
+    avisos += list((nuevo.get("supuestos") or {}).get("ajustes_importacion") or [])
+
+    if agregados:
+        avisos.append(
+            f"Se añadieron los periodos {', '.join(agregados)} desde un segundo "
+            f"archivo. El análisis ahora abarca {', '.join(periodos)}.")
+    if repetidos:
+        cual = ("del archivo que ya estaba cargado" if conservar == "base"
+                else "del archivo que se acaba de cargar")
+        avisos.append(
+            f"El periodo {', '.join(repetidos)} venía en los dos archivos y se "
+            f"conservaron las cifras {cual}. Las empresas reexpresan cifras de un "
+            f"informe al siguiente, así que las dos versiones pueden diferir de "
+            f"verdad.")
+
+    nombres = {str(base.get("empresa") or "").strip().lower(),
+               str(nuevo.get("empresa") or "").strip().lower()}
+    nombres.discard("")
+    if len(nombres) > 1:
+        avisos.append(
+            f"⚠️ Los dos archivos venían con nombres distintos "
+            f"({base.get('empresa')} / {nuevo.get('empresa')}). Se unieron de todas "
+            f"formas porque usted lo pidió, pero verifique que sean la misma empresa.")
+    for campo, etiqueta in (("moneda", "la moneda"), ("unidad", "la unidad")):
+        if base.get(campo) and nuevo.get(campo) and base.get(campo) != nuevo.get(campo):
+            avisos.append(
+                f"⚠️ {etiqueta.capitalize()} no coincide entre los dos archivos "
+                f"({base.get(campo)} / {nuevo.get(campo)}). Se usó {base.get(campo)}. "
+                f"Si de verdad son distintas, las cifras NO son comparables.")
+
+    if avisos:
+        unido["supuestos"] = {"ajustes_importacion": avisos}
+    unido["fusion"] = {"agregados": agregados, "repetidos": repetidos,
+                       "conservado": conservar, "periodos": periodos}
+    return unido

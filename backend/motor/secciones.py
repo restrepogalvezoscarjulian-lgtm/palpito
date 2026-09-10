@@ -33,20 +33,23 @@ def _normalizar(texto: str) -> str:
 
 # Títulos con los que un estado financiero se anuncia a sí mismo. Valen mucho
 # porque aparecen una sola vez, justo en la página del estado.
+#
+# Van como expresiones regulares y no como frases exactas porque los emisores
+# meten una palabra en la mitad: Grupo Bolívar titula "Estado **Consolidado**
+# de Situación Financiera", y buscando la frase seguida el estado verdadero
+# sacaba CERO puntos de título mientras las notas que lo mencionan de pasada
+# sacaban cuatro. El `(?:\w+\s+){0,2}` es ese hueco: consolidado, separado,
+# individual, intermedio condensado.
 TITULOS = {
     "balance": (
-        "estado de situacion financiera",
-        "estados de situacion financiera",
-        "balance general",
-        "estado de posicion financiera",
+        r"estados?\s+(?:\w+\s+){0,2}de\s+situacion\s+financiera",
+        r"estados?\s+(?:\w+\s+){0,2}de\s+posicion\s+financiera",
+        r"balances?\s+(?:\w+\s+){0,2}general(?:es)?",
     ),
     "resultados": (
-        "estado de resultados",
-        "estados de resultados",
-        "estado de ganancias y perdidas",
-        "estados de ganancias y perdidas",
-        "estado del resultado",
-        "estado de resultado integral",
+        r"estados?\s+(?:\w+\s+){0,2}del?\s+resultados?(?:\s+integral)?",
+        r"estados?\s+(?:\w+\s+){0,2}de\s+ganancias\s+y\s+perdidas",
+        r"estados?\s+(?:\w+\s+){0,2}de\s+operaciones",
     ),
 }
 
@@ -91,6 +94,7 @@ class Hallazgo:
     puntaje: int
     marcadores: list[str] = field(default_factory=list)
     es_indice: bool = False
+    renglones: int = 0               # cuántos marcadores eran renglones de saldo
 
 
 @dataclass
@@ -109,6 +113,9 @@ class Bloque:
     paginas: list[int]
     puntaje: int
     marcadores: list[str] = field(default_factory=list)
+    # Un bloque sin renglones de saldo es prosa que menciona el estado, no el
+    # estado. No crece y no compite de igual a igual con uno que sí los trae.
+    con_renglones: bool = False
 
     @property
     def ini(self) -> int:
@@ -120,16 +127,27 @@ class Bloque:
 
 
 def _agrupar(utiles: list[Hallazgo], clase: str) -> list[Bloque]:
-    """Junta en un bloque las páginas seguidas que puntúan en la misma clase."""
+    """Junta en un bloque las páginas seguidas que puntúan en la misma clase.
+
+    Solo agrupa páginas que traen RENGLONES de saldo. Una página que únicamente
+    menciona el título es prosa que habla del estado, no el estado: en el
+    informe de Grupo Bolívar 2024, tres páginas seguidas de notas decían "se
+    reconoce en el estado de resultados" y sumaban 12 puntos, contra los 4 del
+    balance verdadero de la página 14. Sumar prosa no hace un estado financiero.
+    """
     bloques: list[Bloque] = []
     for h in sorted((x for x in utiles if x.clase == clase), key=lambda x: x.pagina):
-        if bloques and h.pagina == bloques[-1].fin + 1:
+        con_renglones = h.renglones > 0
+        pegable = (bloques and con_renglones and bloques[-1].con_renglones
+                   and h.pagina == bloques[-1].fin + 1)
+        if pegable:
             b = bloques[-1]
             b.paginas.append(h.pagina)
             b.puntaje += h.puntaje
             b.marcadores.extend(m for m in h.marcadores if m not in b.marcadores)
         else:
-            bloques.append(Bloque(clase, [h.pagina], h.puntaje, list(h.marcadores)))
+            bloques.append(Bloque(clase, [h.pagina], h.puntaje,
+                                  list(h.marcadores), con_renglones))
     return bloques
 
 
@@ -138,19 +156,29 @@ def _separacion(a: Bloque, b: Bloque) -> int:
     return max(0, max(a.ini, b.ini) - min(a.fin, b.fin))
 
 
-def _puntuar(texto: str, clase: str) -> tuple[int, list[str]]:
+def _puntuar(texto: str, clase: str) -> tuple[int, list[str], int]:
+    """Puntúa una página. Devuelve (puntaje, marcadores, cuántos renglones).
+
+    El conteo de renglones se devuelve aparte porque distingue las dos cosas
+    que se parecen: una página que TIENE el estado trae renglones de saldo
+    ("total activos 289.387.918"); una nota que solo lo MENCIONA, no. Sin esa
+    distinción, tres páginas seguidas de notas en prosa le ganaban al balance
+    verdadero en el informe de Grupo Bolívar 2024.
+    """
     plano = _normalizar(texto)
-    puntaje, encontrados = 0, []
+    puntaje, encontrados, renglones = 0, [], 0
     for titulo in TITULOS[clase]:
-        if titulo in plano:
+        hallado = re.search(titulo, plano)
+        if hallado:
             puntaje += PESO_TITULO
-            encontrados.append(titulo)
+            encontrados.append(hallado.group(0))
             break                     # un título por página ya es suficiente
     for renglon in RENGLONES[clase]:
         if renglon in plano:
             puntaje += PESO_RENGLON
             encontrados.append(renglon)
-    return puntaje, encontrados
+            renglones += 1
+    return puntaje, encontrados, renglones
 
 
 def analizar_paginas(textos: list[str]) -> dict:
@@ -168,9 +196,10 @@ def analizar_paginas(textos: list[str]) -> dict:
         # puntuar, o se llevaría el puntaje más alto del documento.
         es_indice = len(_PUNTOS.findall(texto)) >= 3
         for clase in ("balance", "resultados"):
-            puntaje, marcadores = _puntuar(texto, clase)
+            puntaje, marcadores, renglones = _puntuar(texto, clase)
             if puntaje >= UMBRAL:
-                hallazgos.append(Hallazgo(i, clase, puntaje, marcadores, es_indice))
+                hallazgos.append(
+                    Hallazgo(i, clase, puntaje, marcadores, es_indice, renglones))
 
     utiles = [h for h in hallazgos if not h.es_indice]
     descartados_indice = sorted({h.pagina for h in hallazgos if h.es_indice})
@@ -206,7 +235,13 @@ def analizar_paginas(textos: list[str]) -> dict:
         if _separacion(b, r) <= MAX_SEPARACION
     ]
     if parejas:
-        b, r = max(parejas, key=lambda p: (p[0].puntaje + p[1].puntaje,
+        # Primero manda cuántos de los dos traen renglones de saldo: una pareja
+        # de páginas con cifras le gana a una de páginas que solo mencionan el
+        # estado, aunque estas sumen más puntos por ser más. Después el puntaje,
+        # y ante empate la que aparezca antes, porque los estados van delante de
+        # las notas que los comentan.
+        b, r = max(parejas, key=lambda p: (p[0].con_renglones + p[1].con_renglones,
+                                           p[0].puntaje + p[1].puntaje,
                                            -min(p[0].ini, p[1].ini)))
         elegidos = sorted((b, r), key=lambda x: x.ini)
 

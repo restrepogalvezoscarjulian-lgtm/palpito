@@ -430,3 +430,76 @@ def test_el_eva_viaja_con_su_trazabilidad(ind):
     assert "UODI" in eva.formula
     assert eva.fuente
     assert "supuestos.wacc" in eva.insumos
+
+
+# ------------------- cuando la vara no mide a esta empresa (Grupo Bolivar)
+
+
+def _ef(balance=None, resultados=None, periodos=("2025",)):
+    from motor.modelos import EstadosFinancieros
+    return EstadosFinancieros({
+        "empresa": "Prueba", "periodos": list(periodos),
+        "balance": balance or {}, "resultados": resultados or {},
+    })
+
+
+def test_un_banco_no_puede_salir_en_verde():
+    """El caso Grupo Bolivar, 10-sep-2026: reconocio 13 cuentas y ninguna
+    verificacion se quejo, porque las que podrian haberlo hecho necesitan
+    cuentas que un banco no reporta. Un analisis sin sentido con luz verde es
+    peor que uno con luz roja: el rojo se discute, el verde se cree.
+    """
+    from motor.validacion import semaforo, validar
+
+    ef = _ef(
+        balance={"efectivo": [23619550], "cuentas_por_cobrar": [12299355],
+                 "inventarios": [3586636], "activo_total": [289387918],
+                 "patrimonio": [24460189]},
+        resultados={"ventas": [2499425], "costo_ventas": [3252244],
+                    "gastos_financieros": [11312961], "utilidad_neta": [696884]},
+    )
+    hallazgos = validar(ef)
+    assert semaforo(hallazgos) == "rojo", "le dio luz verde a un banco"
+    assert any(h.codigo == "CATALOGO_NO_ENCAJA" for h in hallazgos)
+
+
+def test_el_costo_no_puede_superar_a_las_ventas():
+    from motor.validacion import validar
+
+    h = validar(_ef(resultados={"ventas": [1000], "costo_ventas": [1400]}))
+    malos = [x for x in h if x.codigo == "CATALOGO_NO_ENCAJA"]
+    assert malos and malos[0].severidad == "error"
+    assert "costo de ventas" in malos[0].mensaje
+
+
+def test_los_intereses_no_pueden_superar_a_las_ventas():
+    from motor.validacion import validar
+
+    h = validar(_ef(resultados={"ventas": [1000], "gastos_financieros": [4500]}))
+    assert any(x.codigo == "CATALOGO_NO_ENCAJA" and "financieros" in x.mensaje
+               for x in h)
+
+
+def test_un_balance_sin_corriente_ni_no_corriente_se_reporta():
+    """Asi presentan sus estados los bancos y las aseguradoras."""
+    from motor.validacion import validar
+
+    h = validar(_ef(balance={"activo_total": [500], "patrimonio": [200]}))
+    assert any(x.codigo == "CATALOGO_NO_ENCAJA" and "corriente" in x.mensaje
+               for x in h)
+
+
+def test_una_pyme_normal_no_dispara_ninguna_de_estas_alarmas():
+    """La otra mitad: estas senales no pueden ensuciar el caso del taller."""
+    import json
+    from pathlib import Path
+
+    from motor.modelos import EstadosFinancieros
+    from motor.validacion import validar
+
+    for caso in ("comercial_andina", "andina_trienio", "andina_con_benchmark"):
+        ruta = Path(__file__).resolve().parents[2] / "casos" / f"{caso}.json"
+        with open(ruta, encoding="utf-8") as fh:
+            datos = json.load(fh)
+        h = validar(EstadosFinancieros(datos))
+        assert not [x for x in h if x.codigo == "CATALOGO_NO_ENCAJA"], caso

@@ -11,6 +11,8 @@ Documentacion:    http://localhost:8000/docs
 from __future__ import annotations
 
 import json
+import re
+import unicodedata
 from dataclasses import asdict
 from pathlib import Path
 
@@ -30,7 +32,8 @@ from motor.indicadores import (
 from motor import narrativa
 from motor.modelos import EstadosFinancieros
 from motor.benchmark import codigos_comparables, comparar
-from motor.importacion import CUENTAS, GRUPO, armar_estados, importar
+from motor.importacion import (CUENTAS, GRUPO, armar_estados, fundir_estados,
+                               importar)
 from motor.proyectos import (
     Proyecto,
     calcular_wacc,
@@ -150,6 +153,69 @@ def listar_casos():
             }
         )
     return salida
+
+
+# Los casos del taller son la evidencia de auditoria del proyecto: la suite los
+# verifica contra valores calculados a mano. Guardar una empresa nueva NUNCA
+# puede pisarlos, por mucho que el usuario escriba ese nombre.
+CASOS_PROTEGIDOS = frozenset({
+    "comercial_andina", "andina_trienio", "andina_con_benchmark",
+})
+
+
+def _nombre_de_archivo(empresa: str) -> str:
+    """Convierte el nombre de una empresa en un nombre de archivo seguro.
+
+    Solo letras, digitos y guion bajo. Nada de barras, dos puntos ni "..": el
+    id viaja desde el navegador y no puede terminar escribiendo fuera de
+    casos/.
+    """
+    plano = unicodedata.normalize("NFKD", str(empresa or ""))
+    plano = "".join(c for c in plano if not unicodedata.combining(c))
+    plano = re.sub(r"[^A-Za-z0-9]+", "_", plano).strip("_").lower()
+    return plano[:60] or "empresa"
+
+
+class EntradaGuardar(BaseModel):
+    """Una empresa cargada por archivo, para dejarla en casos/."""
+
+    estados: EntradaEstados
+    sobrescribir: bool = False
+
+
+@app.post("/api/casos", tags=["casos"])
+def guardar_caso(entrada: EntradaGuardar):
+    """Guarda en disco una empresa cargada, para que sobreviva al navegador.
+
+    Se separa a proposito de la carga: probar un PDF no debe ensuciar la
+    carpeta, y guardar es un acto explicito del usuario.
+    """
+    datos = entrada.estados.model_dump()
+    if not datos.get("periodos"):
+        raise HTTPException(422, "Los estados no declaran periodos.")
+
+    nombre = _nombre_de_archivo(datos.get("empresa"))
+    if nombre in CASOS_PROTEGIDOS:
+        raise HTTPException(
+            409,
+            f"'{datos.get('empresa')}' coincide con un caso del taller, que la "
+            f"suite de pruebas verifica contra valores calculados a mano. "
+            f"Cambiele el nombre a la empresa antes de guardar.")
+
+    ruta = (CASOS / f"{nombre}.json").resolve()
+    if ruta.parent != CASOS.resolve():
+        raise HTTPException(400, "Nombre de empresa invalido.")
+    ya_existia = ruta.exists()        # se mira ANTES de escribir
+    if ya_existia and not entrada.sobrescribir:
+        raise HTTPException(
+            409, f"Ya existe un caso guardado como '{nombre}'. Confirme para "
+                 f"reemplazarlo, o cambiele el nombre a la empresa.")
+
+    datos.pop("fusion", None)          # detalle de la union, no es un dato
+    with open(ruta, "w", encoding="utf-8") as fh:
+        json.dump(datos, fh, ensure_ascii=False, indent=2)
+    return {"id": nombre, "empresa": datos.get("empresa"),
+            "periodos": datos.get("periodos"), "sobrescrito": ya_existia}
 
 
 @app.get("/api/casos/{caso_id}", tags=["casos"])
@@ -316,6 +382,32 @@ def armar_desde_tabla(entrada: EntradaTabla):
     try:
         return armar_estados(entrada.model_dump(), empresa=entrada.empresa,
                              moneda=entrada.moneda, unidad=entrada.unidad)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+class EntradaFusion(BaseModel):
+    """Dos juegos de estados de la misma empresa, para unir sus periodos."""
+
+    base: EntradaEstados
+    nuevo: EntradaEstados
+    # "base" conserva el archivo que ya estaba; "nuevo", el que llega.
+    conservar: str = "base"
+
+
+@app.post("/api/importar/fundir", tags=["importacion"])
+def fundir(entrada: EntradaFusion):
+    """Une los años de dos archivos de la misma empresa.
+
+    Un informe anual trae dos años. Con dos informes se ven tres, que es lo que
+    hace falta para leer una tendencia. El año repetido no se resuelve solo: lo
+    decide el usuario, porque las empresas reexpresan cifras de un informe al
+    siguiente y las dos versiones pueden diferir de verdad.
+    """
+    try:
+        return fundir_estados(entrada.base.model_dump(),
+                              entrada.nuevo.model_dump(),
+                              conservar=entrada.conservar)
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
 

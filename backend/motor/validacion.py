@@ -24,6 +24,7 @@ def validar(ef: EstadosFinancieros) -> list[Hallazgo]:
         hallazgos += _subtotales_balance(ef, i, periodo)
         hallazgos += _encadenamiento_resultados(ef, i, periodo)
         hallazgos += _valores_imposibles(ef, i, periodo)
+    hallazgos += _catalogo_no_encaja(ef)
     hallazgos += _datos_faltantes(ef)
     return hallazgos
 
@@ -164,6 +165,75 @@ def _valores_imposibles(ef: EstadosFinancieros, i: int, periodo: str) -> list[Ha
                     mensaje=f"{periodo}: la cuenta {nombre} es negativa ({v:,.0f}).",
                 )
             )
+    return salida
+
+
+def _catalogo_no_encaja(ef: EstadosFinancieros) -> list[Hallazgo]:
+    """Detecta que estos estados no son de una empresa que el catalogo cubra.
+
+    Palpito conoce 23 cuentas pensadas para una empresa que COMPRA, GUARDA y
+    VENDE. Un banco o una aseguradora no hacen eso: sus ingresos son intereses,
+    su "costo" es lo que le paga a los ahorradores, y su balance no se parte en
+    corriente y no corriente.
+
+    El 10-sep-2026 se cargo el consolidado de Grupo Bolivar -dueno de
+    Davivienda- y salio semaforo VERDE. Reconocio 13 cuentas y ninguna
+    verificacion se quejo, porque las que podrian haberlo hecho necesitan
+    cuentas que un banco no reporta: sin pasivo corriente no hay ecuacion
+    contable que cuadrar, y sin subtotales no hay subtotales que revisar. El
+    resultado fue un analisis sin sentido con luz verde, que es peor que uno
+    con luz roja: el rojo se discute, el verde se cree.
+
+    Las senales de abajo no dicen "la empresa esta mal". Dicen "esta vara no
+    mide esta empresa".
+    """
+    salida: list[Hallazgo] = []
+    consejo = (
+        "Palpito esta hecho para una empresa que compra, guarda y vende. En un "
+        "banco, una aseguradora o un holding, los indicadores se calculan igual "
+        "pero no significan lo mismo. Use los estados de una empresa operativa, "
+        "o interprete estas cifras con esa advertencia por delante."
+    )
+
+    for i, periodo in enumerate(ef.periodos):
+        ventas = ef.valor("ventas", i)
+        if ventas is None or ventas <= 0:
+            continue
+        costo = ef.valor("costo_ventas", i)
+        if costo is not None and costo > ventas:
+            salida.append(Hallazgo(
+                severidad="error",
+                codigo="CATALOGO_NO_ENCAJA",
+                mensaje=(f"{periodo}: el costo de ventas ({costo:,.0f}) supera a las "
+                         f"ventas ({ventas:,.0f})."),
+                detalle=("Vender por debajo del costo un ano entero es raro; lo "
+                         "corriente es que esas dos etiquetas no sean lo que el "
+                         "motor cree. " + consejo),
+            ))
+        financieros = ef.valor("gastos_financieros", i)
+        if financieros is not None and financieros > ventas:
+            salida.append(Hallazgo(
+                severidad="error",
+                codigo="CATALOGO_NO_ENCAJA",
+                mensaje=(f"{periodo}: los gastos financieros ({financieros:,.0f}) "
+                         f"superan a las ventas ({ventas:,.0f})."),
+                detalle=("Una empresa no puede pagar mas intereses de lo que vende. "
+                         "En un banco si: los intereses que paga son su costo de "
+                         "operar, no una carga de deuda. " + consejo),
+            ))
+
+    # Un balance sin la division corriente / no corriente no es de una empresa
+    # comercial. Sin esas cuentas, media validacion se queda sin nada que mirar.
+    if ef.existe("activo_total") and not ef.existe("activo_corriente") \
+            and not ef.existe("pasivo_corriente"):
+        salida.append(Hallazgo(
+            severidad="error",
+            codigo="CATALOGO_NO_ENCAJA",
+            mensaje="El balance no separa lo corriente de lo no corriente.",
+            detalle=("Asi presentan sus estados los bancos y las aseguradoras. Sin "
+                     "esa division no hay liquidez que medir, y la ecuacion "
+                     "contable no se puede verificar. " + consejo),
+        ))
     return salida
 
 

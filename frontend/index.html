@@ -781,6 +781,7 @@
       <select id="selectorCaso" aria-label="Caso a analizar"></select>
       <button id="btnImportar">Cargar archivo</button>
       <button id="btnEditor">Editar datos</button>
+      <button id="btnGuardarCaso" style="display:none">Guardar este caso</button>
       <button class="primario" id="btnRecalcular" style="display:none">Recalcular</button>
       <div class="derecha">
         <label class="interruptor">
@@ -858,6 +859,57 @@ async function cargarListaCasos(){
    que se cargaron por archivo. Van en su propio grupo para que se vea de un
    vistazo cuáles son ejemplos del curso y cuál es la empresa que se acaba de
    subir. */
+/* El botón de guardar solo aparece cuando hay algo que guardar: una empresa
+   que llegó por archivo y todavía vive solo en esta pestaña. Para los casos del
+   repositorio no tiene sentido, porque ya están en disco. */
+function actualizarBotonGuardar(){
+  const b = $("#btnGuardarCaso");
+  if(!b) return;
+  b.style.display = casosCargados.has($("#selectorCaso").value) ? "" : "none";
+}
+
+async function guardarCasoActual(){
+  const b = $("#btnGuardarCaso");
+  const antes = b.textContent;
+  b.disabled = true; b.textContent = "Guardando…";
+  const pedir = async sobrescribir => fetch("/api/casos", {
+    method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({estados: datosCaso, sobrescribir}),
+  });
+  try{
+    let r = await pedir(false);
+    if(r.status === 409){
+      const {detail} = await r.json();
+      /* Un 409 puede ser "ya existe" —que se puede confirmar— o "es un caso
+         del taller" —que no—. Solo se ofrece reemplazar cuando de verdad se
+         puede: los tres casos del taller son la evidencia de auditoría del
+         proyecto y el servidor los protege pase lo que pase. */
+      if(!detail.includes("caso del taller") && confirm(detail + "\n\n¿Reemplazarlo?")){
+        r = await pedir(true);
+      }else{
+        alert(detail);
+        return;
+      }
+    }
+    if(!r.ok){
+      const {detail} = await r.json().catch(() => ({detail:"Error del servidor"}));
+      return alert("No se pudo guardar: " + detail);
+    }
+    const guardado = await r.json();
+    /* Deja de ser "cargado en esta sesión" y pasa a ser un caso del disco. */
+    casosCargados.delete($("#selectorCaso").value);
+    await cargarListaCasos();
+    await cargarCaso(guardado.id);
+    alert(`Guardado como «${guardado.empresa}» con los periodos ` +
+          `${(guardado.periodos || []).join(", ")}.\n\n` +
+          `Ya no se pierde al cerrar el navegador.`);
+  }catch(e){
+    alert("No se pudo guardar: " + e.message);
+  }finally{
+    b.disabled = false; b.textContent = antes;
+  }
+}
+
 function pintarSelectorCasos(){
   const opcion = c => `<option value="${esc(c.id)}">${esc(c.empresa)}</option>`;
   let html = casosServidor.map(opcion).join("");
@@ -873,6 +925,7 @@ async function cargarCaso(id){
   datosCaso = cargado ? structuredClone(cargado.datos)
                       : await (await fetch(`/api/casos/${id}`)).json();
   $("#selectorCaso").value = id;
+  actualizarBotonGuardar();
   await analizar();
   pintarEditor();
 }
@@ -1290,20 +1343,69 @@ function selloDe(fila){
   return `<span class="sello-origen ${clase}">${esc(texto)}${esc(conf)}</span>`;
 }
 
+/* Alinea los valores de una fila con los periodos declarados, EXACTAMENTE como
+   lo hace el motor al armar los estados: cuando sobran números se conservan los
+   últimos, no los primeros, porque la columna de la izquierda de un estado
+   publicado suele ser el número de nota.
+
+   Esta pantalla mostraba los primeros, así que en el informe de Grupo Bolívar
+   —"Efectivo y equivalentes de efectivo 13 $ 23.619.550 16.688.209"— enseñaba
+   el 13 de la nota como si fuera el saldo de 2025. El motor calculaba bien; la
+   pantalla que existe para revisarlo era la que mentía. */
+function alinearConPeriodos(valores, n){
+  const v = valores || [];
+  if(v.length > n) return {usados: v.slice(v.length - n), descartados: v.slice(0, v.length - n)};
+  return {usados: v.concat(Array(n - v.length).fill(null)), descartados: []};
+}
+
+/* Un informe anual trae dos años. Con dos informes se ven tres, que es lo que
+   hace falta para leer una tendencia: con dos años solo se ve un salto. El
+   motor siempre supo trabajar con hasta seis periodos —el caso del trienio
+   corre con tres—, pero el cargador solo aceptaba un archivo. Esta opción es
+   la escalera que faltaba. */
+function bloqueAniadir(){
+  if(!datosCaso || !(datosCaso.periodos || []).length) return "";
+  return `
+    <div class="tarjeta" style="margin-top:14px">
+      <label style="display:flex;gap:9px;align-items:flex-start;cursor:pointer">
+        <input type="checkbox" id="impAniadir" style="margin-top:3px">
+        <span>
+          <b>Añadir estos años a «${esc(datosCaso.empresa)}»</b>
+          <div class="leyenda" style="margin:4px 0 0">
+            Ahora tiene ${esc((datosCaso.periodos || []).join(", "))}.
+            Sin marcar, este archivo <b>reemplaza</b> lo cargado.
+            Marcado, se unen los años. Un año que venga en los dos archivos se
+            le preguntará cuál conservar.
+          </div>
+        </span>
+      </label>
+    </div>`;
+}
+
 async function pintarMapeo(){
   const t = tablaImportada, catalogo = await cuentas();
   const asignadas = t.filas.filter(f => f.cuenta).length;
   const libres = t.filas.length - asignadas;
 
-  const filas = t.filas.map((f, i) => `
+  const filas = t.filas.map((f, i) => {
+    const {usados, descartados} = alinearConPeriodos(f.valores, t.periodos.length);
+    /* Lo descartado se muestra, no se esconde: si el motor va a ignorar un
+       número, quien revisa tiene derecho a ver cuál y decidir si se equivocó. */
+    const aviso = descartados.length
+      ? `<div class="detalle">No se usará ${descartados.map(x => num(x, 0)).join(", ")}
+           —la columna de la izquierda de un estado publicado suele ser el número de nota—.</div>`
+      : "";
+    return `
     <tr class="${f.cuenta ? "" : "libre"}">
       <td class="etiqueta">${esc(f.etiqueta)}
         ${f.origen ? `<div class="orig">${esc(f.origen)}</div>` : ""}
-        ${f.nota ? `<div class="detalle">${esc(f.nota)}</div>` : ""}</td>
-      ${t.periodos.map((_, p) => `<td class="cifra">${f.valores[p] === undefined || f.valores[p] === null ? "—" : num(f.valores[p], 0)}</td>`).join("")}
+        ${f.nota ? `<div class="detalle">${esc(f.nota)}</div>` : ""}
+        ${aviso}</td>
+      ${usados.map(v => `<td class="cifra">${v === undefined || v === null ? "—" : num(v, 0)}</td>`).join("")}
       <td>${selectorCuenta(f, i, catalogo)}</td>
       <td>${selloDe(f)}</td>
-    </tr>`).join("");
+    </tr>`;
+  }).join("");
 
   $("#importador").innerHTML = `
     <div class="imp-cabeza">
@@ -1324,6 +1426,8 @@ async function pintarMapeo(){
       ${t.periodos.map((p, i) => `<label>Periodo ${i + 1}
         <input class="periodo" data-periodo="${i}" value="${esc(p)}"></label>`).join("")}
     </div>
+
+    ${bloqueAniadir()}
 
     <div class="desplazable"><table class="mapeo">
       <thead><tr><th>Fila del archivo</th>
@@ -1425,9 +1529,45 @@ async function usarImportado(){
       `<div class="aviso">${esc(err.detail)}</div>`);
   }
 
-  datosCaso = await r.json();
+  let recien = await r.json();
+
+  /* Unir los años de dos archivos. La decisión sobre un año repetido NO se
+     toma sola: las empresas reexpresan cifras de un informe al siguiente, así
+     que las dos versiones pueden diferir de verdad y elegir en silencio sería
+     inventar. Promediarlas, peor. */
+  if($("#impAniadir")?.checked && datosCaso && (datosCaso.periodos || []).length){
+    const repetidos = (recien.periodos || []).filter(p => datosCaso.periodos.includes(p));
+    let conservar = "nuevo";
+    if(repetidos.length){
+      conservar = confirm(
+        `El periodo ${repetidos.join(", ")} viene en los dos archivos.\n\n` +
+        `Aceptar = conservar las cifras del archivo que ACABA de cargar.\n` +
+        `Cancelar = conservar las que ya estaban.\n\n` +
+        `Las empresas reexpresan cifras de un informe al siguiente, así que ` +
+        `las dos versiones pueden ser distintas y las dos correctas.`
+      ) ? "nuevo" : "base";
+    }
+    const rf = await fetch("/api/importar/fundir", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({base: datosCaso, nuevo: recien, conservar}),
+    });
+    if(!rf.ok){
+      const err = await rf.json().catch(() => ({detail:"Error desconocido"}));
+      return $("#importador").insertAdjacentHTML("afterbegin",
+        `<div class="aviso">No se pudieron unir los años: ${esc(err.detail)}</div>`);
+    }
+    recien = await rf.json();
+  }
+
+  datosCaso = recien;
   $("#importador").classList.remove("abierto");
   $("#btnImportar").textContent = "Cargar archivo";
+
+  /* Se suelta la tabla del archivo que se acaba de usar. Sin esto, volver a
+     pulsar "Cargar archivo" mostraba la revisión del archivo ANTERIOR en vez
+     de dejar escoger uno nuevo, y parecía que la aplicación no aceptara más de
+     un archivo. */
+  tablaImportada = null;
 
   /* La empresa cargada entra al desplegable con su nombre. Antes aquí se
      dejaba el selector en blanco, así que la empresa quedaba analizada pero
@@ -1441,6 +1581,7 @@ async function usarImportado(){
   });
   pintarSelectorCasos();
   $("#selectorCaso").value = id;
+  actualizarBotonGuardar();
 
   await analizar();
   pintarEditor();
@@ -2799,6 +2940,7 @@ $("#btnRecalcular").addEventListener("click", async () => {
   await analizar();
 });
 $("#selectorCaso").addEventListener("change", e => cargarCaso(e.target.value));
+$("#btnGuardarCaso").addEventListener("click", guardarCasoActual);
 
 (async () => {
   try{

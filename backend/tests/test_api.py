@@ -231,3 +231,127 @@ def test_sin_ajustes_el_campo_viene_vacio_no_ausente(cliente, datos):
     r = cliente.post("/api/analizar", json=datos)
     assert r.status_code == 200
     assert r.json()["validacion"]["ajustes_importacion"] == []
+
+
+# --------------------------------- guardar una empresa cargada (opcion A)
+
+
+ESTADOS_NUEVOS = {
+    "empresa": "Cementos de Prueba S.A.", "moneda": "COP", "unidad": "millones",
+    "periodos": ["2023", "2024"],
+    "balance": {"efectivo": [100, 200], "activo_total": [1000, 1100],
+                "patrimonio": [400, 450], "pasivo_corriente": [300, 320],
+                "activo_corriente": [500, 560]},
+    "resultados": {"ventas": [5000, 5500], "costo_ventas": [3000, 3200],
+                   "utilidad_neta": [300, 350]},
+}
+
+
+@pytest.fixture
+def limpiar_guardados(tmp_path, monkeypatch):
+    """Manda las escrituras a una carpeta temporal, NO a casos/.
+
+    La primera version de estas pruebas escribia en la carpeta de verdad, y una
+    prueba que fallo a mitad dejo ahi un archivo suelto. Los tres casos del
+    taller son la evidencia de auditoria del proyecto: una prueba no puede
+    tener permiso de tocar esa carpeta, ni por accidente.
+    """
+    import shutil
+
+    import api
+
+    for nombre in ("comercial_andina", "andina_trienio", "andina_con_benchmark"):
+        origen = api.CASOS / f"{nombre}.json"
+        if origen.exists():
+            shutil.copy(origen, tmp_path / f"{nombre}.json")
+    monkeypatch.setattr(api, "CASOS", tmp_path)
+    yield []
+
+
+def test_una_empresa_cargada_se_puede_guardar(cliente, limpiar_guardados):
+    r = cliente.post("/api/casos", json={"estados": ESTADOS_NUEVOS})
+    assert r.status_code == 200, r.text
+    guardado = r.json()
+    assert guardado["id"] == "cementos_de_prueba_s_a"
+    assert guardado["sobrescrito"] is False
+    # y desde ese momento aparece en la lista y se puede volver a abrir
+    assert any(c["id"] == guardado["id"] for c in cliente.get("/api/casos").json())
+    assert cliente.get(f"/api/casos/{guardado['id']}").json()["periodos"] == ["2023", "2024"]
+
+
+@pytest.mark.parametrize("empresa", [
+    "Comercial Andina",          # -> comercial_andina
+    "comercial andina",
+    "COMERCIAL  ANDINA",
+    "Comercial-Andina",
+    "Andina Trienio",            # -> andina_trienio
+    "andina con benchmark",      # -> andina_con_benchmark
+])
+def test_los_casos_del_taller_no_se_pueden_pisar(cliente, empresa,
+                                                limpiar_guardados):
+    """Son la evidencia de auditoria del proyecto: la suite los verifica contra
+    valores calculados a mano. Ningun nombre que caiga en su archivo puede
+    sobrescribirlos, ni siquiera pidiendolo explicitamente.
+    """
+    r = cliente.post("/api/casos",
+                     json={"estados": dict(ESTADOS_NUEVOS, empresa=empresa),
+                           "sobrescribir": True})
+    assert r.status_code == 409, f"'{empresa}' pudo pisar un caso del taller"
+    assert "taller" in r.json()["detail"]
+
+
+def test_los_tres_casos_del_taller_siguen_intactos(cliente):
+    """La red debajo de la red: despues de todas las pruebas de guardado, los
+    tres archivos tienen que seguir dando lo mismo.
+    """
+    esperado = {"comercial_andina": ["2023", "2024"],
+                "andina_trienio": ["2022", "2023", "2024"],
+                "andina_con_benchmark": ["2022", "2023", "2024"]}
+    for caso, periodos in esperado.items():
+        assert cliente.get(f"/api/casos/{caso}").json()["periodos"] == periodos
+
+
+def test_un_nombre_parecido_pero_distinto_si_se_guarda(cliente, limpiar_guardados):
+    """La proteccion no puede ser tan ancha que estorbe: "Comercial Andina
+    S.A." cae en otro archivo y es legitimo guardarla.
+    """
+    r = cliente.post("/api/casos",
+                     json={"estados": dict(ESTADOS_NUEVOS,
+                                           empresa="Comercial Andina S.A.")})
+    assert r.status_code == 200, r.text
+    assert r.json()["id"] == "comercial_andina_s_a"
+
+
+def test_guardar_dos_veces_pide_confirmacion(cliente, limpiar_guardados):
+    r = cliente.post("/api/casos", json={"estados": ESTADOS_NUEVOS})
+    repetido = cliente.post("/api/casos", json={"estados": ESTADOS_NUEVOS})
+    assert repetido.status_code == 409
+    assert "Ya existe" in repetido.json()["detail"]
+    forzado = cliente.post("/api/casos",
+                           json={"estados": ESTADOS_NUEVOS, "sobrescribir": True})
+    assert forzado.status_code == 200
+    assert forzado.json()["sobrescrito"] is True
+
+
+@pytest.mark.parametrize("empresa", [
+    "../../fuera", r"..\..\fuera", "carpeta/otra", "C:/Windows/system32",
+])
+def test_un_nombre_con_ruta_no_escribe_fuera_de_casos(cliente, empresa,
+                                                      limpiar_guardados):
+    """El nombre viaja desde el navegador: no puede terminar escribiendo en
+    otra carpeta.
+    """
+    from api import CASOS
+    r = cliente.post("/api/casos",
+                     json={"estados": dict(ESTADOS_NUEVOS, empresa=empresa)})
+    assert r.status_code == 200, r.text
+    guardado = r.json()
+    ruta = (CASOS / f"{guardado['id']}.json").resolve()
+    assert ruta.parent == CASOS.resolve(), f"escribio en {ruta}"
+    assert ".." not in guardado["id"] and "/" not in guardado["id"]
+
+
+def test_sin_periodos_no_se_guarda(cliente, limpiar_guardados):
+    r = cliente.post("/api/casos",
+                     json={"estados": dict(ESTADOS_NUEVOS, periodos=[])})
+    assert r.status_code == 422
