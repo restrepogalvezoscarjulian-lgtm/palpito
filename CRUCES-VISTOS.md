@@ -11,7 +11,7 @@ Coinciden porque piensa igual, no porque la idea se sostenga sola.
 
 ## 1. En un estado financiero publicado hay números que no son cifras contables
 
-**Fuentes independientes: 2** (dos emisoras distintas, dos documentos distintos)
+**Fuentes independientes: 3** (tres emisoras distintas, tres documentos distintos)
 
 - **Ecopetrol**, informe consolidado 2024: la tabla de contenido tiene la misma
   forma que un estado financiero —concepto a la izquierda, número a la derecha—
@@ -19,14 +19,25 @@ Coinciden porque piensa igual, no porque la idea se sostenga sola.
 - **Nutresa**, informe consolidado 2025: la primera columna de cada renglón es
   **el número de nota**: `Inventarios | 11 | 2.558.764 | 2.447.873`. Con dos
   periodos se guardaba `[11, 2.558.764]`.
+- **Grupo Argos**, consolidado 2025 *(10-sep-2026)*: la misma columna de nota,
+  otra vez: `Ventas | 33 | 10.689.943 | 12.277.491` llegó al lector como
+  `[33, 10.689.943, 12.277.491]`. **Esta vez el armador la descartó bien** y
+  guardó los dos últimos valores. La defensa aguantó en un tercer documento
+  que no conocía a los otros dos.
 
 **La regla que sale:** en un documento financiero, un número pequeño y aislado
 junto a un concepto **casi nunca es un saldo**. Es una página, una nota o un
 año. La cifra contable es la que está en la cola del renglón y tiene separador
 de miles.
 
-**Estado: comprobado.** Los dos casos se reprodujeron con el archivo real y hay
-pruebas que los fijan (`test_empresa_grande.py`).
+**Estado: comprobado.** Los tres casos se reprodujeron con el archivo real; los
+dos primeros tienen pruebas que los fijan (`test_empresa_grande.py`). El de
+Argos **todavía no tiene prueba**: se verificó a mano el 10-sep-2026.
+
+⚠️ **Ojo con el matiz:** el armador acierta **por posición** —se queda con los
+dos últimos números porque hay dos periodos—, no porque entienda que ese 33 es
+una nota. Con tres periodos declarados y una columna de nota, volvería a fallar.
+No está comprobado que falle; está sin comprobar que no.
 
 ---
 
@@ -66,3 +77,50 @@ palabra exacta. Que lo repita es señal de que **pesa en la calificación**, no 
 que la idea esté doblemente respaldada.
 
 **Estado: observación, no regla.**
+
+---
+
+## 4. Un estado financiero no cabe necesariamente en una página
+
+**Fuentes independientes: 1** (Grupo Argos, consolidado 2025)
+
+⚠️ **Una sola fuente: es una observación, no una regla.**
+
+El **estado de situación financiera de Grupo Argos ocupa tres páginas** —activos
+en la 16, pasivos en la 17, patrimonio en la 18—, cada una repitiendo el mismo
+título. El detector de secciones de Pálpito puntúa página por página y se queda
+con **la mejor de cada clase**, así que eligió la 18 (la del patrimonio, que
+trae "total pasivos" y "total patrimonio") y **descartó las dos primeras**.
+Resultado: se perdió el activo entero.
+
+**Lo que sugiere:** puntuar páginas sueltas y quedarse con la mejor asume que
+cada estado vive en una hoja. Habría que agrupar páginas contiguas que puntúan
+en la misma clase, en vez de competir entre ellas.
+
+**Estado: comprobado en Argos, no contrastado.** Nutresa también reparte sus
+estados en varias páginas (10-12) y **ahí el detector sí acertó**, lo cual es
+justamente lo que falta entender: por qué en un documento funciona y en el otro
+no. Hasta saberlo, no hay regla.
+
+---
+
+## 5. Dos cuentas que se llaman casi igual y viven en estados distintos
+
+**Fuentes independientes: 1** (Grupo Argos, consolidado 2025)
+
+⚠️ **Una sola fuente: observación, no regla.**
+
+En el balance de Argos hay **"Activos por impuestos" (257.927)**, que es un
+activo. En el estado de resultados hay **"Impuesto sobre las ganancias"
+(589.725)**, que es el gasto de renta. El diccionario de `importacion.py`
+reconoció el primero y lo guardó como el impuesto del estado de resultados.
+
+**El daño se ve en la cifra:** la tasa efectiva de impuestos salió **19,49%**
+cuando el propio informe declara **44,57%** en la Nota 10.3. Más del doble de
+diferencia, sin que nada fallara.
+
+**Lo que sugiere:** el diccionario compara etiquetas sin mirar **en qué estado
+apareció el renglón**. Una etiqueta que empieza por "activos" no debería poder
+caer nunca en el estado de resultados.
+
+**Estado: comprobado a mano el 10-sep-2026.** Sin prueba automática todavía.
