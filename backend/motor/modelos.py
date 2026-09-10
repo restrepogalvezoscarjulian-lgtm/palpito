@@ -1,4 +1,4 @@
-"""Estructuras de datos compartidas por el motor de diagnostico financiero."""
+"""Estructuras de datos compartidas por el motor de diagnóstico financiero."""
 
 from __future__ import annotations
 
@@ -11,9 +11,9 @@ from pathlib import Path
 class Indicador:
     """Un indicador calculado, con toda su trazabilidad.
 
-    Cada indicador carga su propia formula, los insumos que uso y la fuente
-    bibliografica. Eso alimenta el "modo docente": el usuario puede auditar
-    de donde salio cada numero sin salir de la aplicacion.
+    Cada indicador carga su propia fórmula, los insumos que uso y la fuente
+    bibliográfica. Eso alimenta el "modo docente": el usuario puede auditar
+    de donde salio cada número sin salir de la aplicacion.
     """
 
     codigo: str
@@ -31,7 +31,7 @@ class Indicador:
         return any(v is not None for v in self.valores)
 
     def variacion(self) -> float | None:
-        """Diferencia entre el ultimo periodo y el primero."""
+        """Diferencia entre el último periodo y el primero."""
         if len(self.valores) < 2:
             return None
         ini, fin = self.valores[0], self.valores[-1]
@@ -52,7 +52,7 @@ class Hallazgo:
 
 @dataclass
 class Alerta:
-    """Una senal de diagnostico derivada de los indicadores ya calculados."""
+    """Una señal de diagnóstico derivada de los indicadores ya calculados."""
 
     prioridad: int
     titulo: str
@@ -114,7 +114,7 @@ class EstadosFinancieros:
         return self.cuenta(nombre)[i]
 
     def existe(self, *nombres: str) -> bool:
-        """True solo si todas las cuentas pedidas estan presentes."""
+        """True solo si todas las cuentas pedidas están presentes."""
         return all(n in self.balance or n in self.resultados for n in nombres)
 
     # ------------------------------------------------- cuentas derivadas

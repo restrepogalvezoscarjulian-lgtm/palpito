@@ -1,0 +1,118 @@
+{
+  "empresa": "Comercial Andina S.A. (2022-2024)",
+  "moneda": "COP",
+  "unidad": "millones",
+  "periodos": [
+    "2022",
+    "2023",
+    "2024"
+  ],
+  "balance": {
+    "efectivo": [
+      480,
+      420,
+      280
+    ],
+    "cuentas_por_cobrar": [
+      980,
+      1250,
+      1680
+    ],
+    "inventarios": [
+      880,
+      1100,
+      1460
+    ],
+    "activo_corriente": [
+      2480,
+      2950,
+      3620
+    ],
+    "propiedad_planta_equipo": [
+      2400,
+      2800,
+      3250
+    ],
+    "activo_total": [
+      4880,
+      5750,
+      6870
+    ],
+    "proveedores": [
+      800,
+      920,
+      1040
+    ],
+    "deuda_financiera_cp": [
+      260,
+      380,
+      620
+    ],
+    "pasivo_corriente": [
+      1180,
+      1650,
+      2050
+    ],
+    "deuda_financiera_lp": [
+      950,
+      1250,
+      1780
+    ],
+    "patrimonio": [
+      2100,
+      2300,
+      2650
+    ]
+  },
+  "resultados": {
+    "ventas": [
+      7500,
+      8900,
+      10600
+    ],
+    "costo_ventas": [
+      4763,
+      5750,
+      7050
+    ],
+    "utilidad_bruta": [
+      2737,
+      3150,
+      3550
+    ],
+    "gastos_operacionales": [
+      1310,
+      1620,
+      2040
+    ],
+    "utilidad_operacional": [
+      1427,
+      1530,
+      1510
+    ],
+    "gastos_financieros": [
+      150,
+      220,
+      390
+    ],
+    "utilidad_antes_impuestos": [
+      1277,
+      1310,
+      1120
+    ],
+    "impuestos": [
+      383,
+      393,
+      336
+    ],
+    "utilidad_neta": [
+      894,
+      917,
+      784
+    ]
+  },
+  "supuestos": {
+    "dias_anio": 365,
+    "nota": "Mismo caso del taller con un periodo adicional (2022) por delante, para leer tendencia sobre tres puntos y no sobre dos. Las cifras de 2022 son una extension didactica consistente con la historia que ya contaban 2023 y 2024: margenes que caen, cartera e inventario que se alargan y deuda que sube. Igual que los otros dos periodos, trae el balance descuadrado a proposito: esa es la funcionalidad del caso."
+  }
+}

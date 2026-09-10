@@ -53,7 +53,9 @@ GRUPO.update({c: "resultados" for c in CUENTAS_RESULTADOS})
 SINONIMOS: dict[str, tuple[str, ...]] = {
     "efectivo": ("efectivo y equivalentes", "efectivo", "caja y bancos", "caja",
                  "bancos", "disponible"),
-    "cuentas_por_cobrar": ("cuentas por cobrar", "deudores comerciales", "deudores",
+    "cuentas_por_cobrar": ("cuentas comerciales por cobrar",
+                           "cuentas comerciales y otras cuentas por cobrar",
+                           "deudores comerciales y otras cuentas por cobrar","cuentas por cobrar", "deudores comerciales", "deudores",
                            "cartera clientes", "cartera", "clientes", "cxc"),
     "inventarios": ("inventarios", "inventario", "existencias", "mercancias",
                     "mercancia"),
@@ -65,7 +67,10 @@ SINONIMOS: dict[str, tuple[str, ...]] = {
     "activo_total": ("total activo", "total activos", "activo total", "activos totales",
                      "suma del activo"),
     "proveedores": ("proveedores", "cuentas por pagar proveedores",
-                    "acreedores comerciales", "cuentas por pagar comerciales"),
+                    "acreedores comerciales", "cuentas por pagar comerciales",
+                    "cuentas comerciales por pagar",
+                    "cuentas comerciales y otras cuentas por pagar",
+                    "cuentas por pagar y otros pasivos"),
     "deuda_financiera_cp": ("obligaciones financieras corto plazo",
                             "obligaciones financieras cp", "deuda financiera corto plazo",
                             "deuda financiera cp", "creditos corto plazo",
@@ -401,31 +406,181 @@ def leer_csv(contenido: bytes, tabla: Tabla) -> None:
     _filas_desde_matriz(matriz, "csv", tabla)
 
 
-def leer_pdf(contenido: bytes, tabla: Tabla) -> None:
-    """Extrae tablas de un PDF, y si no hay, cae al texto linea por linea.
+# Una linea de tabla de contenido: texto, una fila de puntos y el numero de
+# pagina. El numero NO es una cifra contable, pero se parece a una, y por eso
+# un informe anual completo entraba con los numeros de pagina como si fueran
+# saldos. Verificado con el informe de Ecopetrol 2024, cuyo indice produjo
+# "Propiedades, planta y equipo = 63".
+_INDICE = re.compile(r"\.{4,}\s*\d{1,4}\s*$")
+
+
+def _es_linea_de_indice(linea: str) -> bool:
+    return bool(_INDICE.search(linea.strip()))
+
+
+def _filas_utiles(filas) -> int:
+    """Cuantas de estas filas traen al menos una cifra.
+
+    Es el criterio para escoger entre leer una pagina como tabla o como texto:
+    gana la via que rescate mas renglones con numeros.
+    """
+    return sum(1 for f in filas if any(v is not None for v in f.valores))
+
+
+def _paginas_pedidas(rango: str, total: int) -> set[int] | None:
+    """Traduce "10-14" o "10,11,12" a un conjunto de paginas, 1-based.
+
+    Devuelve None si no se pidio nada, que significa "todas".
+    """
+    if not rango or not rango.strip():
+        return None
+    elegidas = set()
+    for parte in rango.replace(" ", "").split(","):
+        if not parte:
+            continue
+        if "-" in parte:
+            a, _, b = parte.partition("-")
+            try:
+                ini, fin = int(a), int(b)
+            except ValueError:
+                raise ValueError(f"Rango de paginas invalido: '{parte}'.")
+            if ini > fin:
+                ini, fin = fin, ini
+            elegidas.update(range(max(1, ini), min(total, fin) + 1))
+        else:
+            try:
+                n = int(parte)
+            except ValueError:
+                raise ValueError(f"Numero de pagina invalido: '{parte}'.")
+            if 1 <= n <= total:
+                elegidas.add(n)
+    if not elegidas:
+        raise ValueError(
+            f"Ninguna de las paginas pedidas existe. El PDF tiene {total}.")
+    return elegidas
+
+
+def leer_pdf(contenido: bytes, tabla: Tabla, paginas: str = "") -> None:
+    """Extrae las cifras de un PDF, decidiendo pagina por pagina como leerla.
 
     Un PDF no tiene celdas: la tabla hay que reconstruirla. Por eso esta via
     siempre deja un aviso pidiendo revision, y por eso ninguna cifra entra al
     calculo sin que el usuario la confirme en pantalla.
+
+    Tres defensas que salieron de probar informes anuales reales:
+
+    1. **La eleccion tabla-o-texto es por pagina, no global.** Antes bastaba
+       que UNA pagina reportara una tabla para que todas las demas dejaran de
+       leerse como texto. En el informe de Nutresa pdfplumber detecta siete
+       "tablas" espurias en la pagina del balance, y eso hacia que el balance
+       -que ahi es texto perfectamente legible- se perdiera entero.
+
+    2. **Las lineas de tabla de contenido se descartan.** Un indice tiene la
+       misma forma que un estado financiero -concepto a la izquierda, numero a
+       la derecha- pero ese numero es una pagina. El informe de Ecopetrol
+       producia "Propiedades, planta y equipo = 63".
+
+    3. **Se cuentan las paginas que son imagen sin texto.** Los estados
+       firmados suelen ir escaneados, y entonces lo unico legible del
+       documento son el indice y las notas: se leeria todo menos lo que
+       importa.
     """
     import pdfplumber
 
-    encontro_tabla = False
+    paginas_por_tabla = 0
+    paginas_por_texto = 0
+    lineas_indice = 0
+    paginas_imagen = 0
+    paginas_con_texto = 0
+
     with pdfplumber.open(io.BytesIO(contenido)) as pdf:
         if not pdf.pages:
             raise ValueError("El PDF no tiene paginas legibles.")
+
+        total_paginas = len(pdf.pages)
+        pedidas = _paginas_pedidas(paginas, total_paginas)
+        deteccion = None
+
+        # Si nadie dijo que paginas leer, se buscan solas. Un informe anual
+        # entero mezcla las tablas de las notas con el balance, y pedirle al
+        # usuario que abra el PDF y anote las paginas es un trabajo que la
+        # maquina puede hacer.
+        if pedidas is None and total_paginas > 8:
+            from .secciones import analizar_paginas
+            textos = [(pag.extract_text() or "") for pag in pdf.pages]
+            deteccion = analizar_paginas(textos)
+            if deteccion["encontrado"]:
+                pedidas = _paginas_pedidas(deteccion["paginas"], total_paginas)
+                tabla.avisos.append(
+                    "Las paginas se detectaron solas. " + deteccion["lectura"] +
+                    " Si no es lo que esperaba, indique el rango a mano y vuelva "
+                    "a cargar el archivo.")
+
         for n, pagina in enumerate(pdf.pages, start=1):
+            texto = pagina.extract_text() or ""
+
+            # El conteo de escaneadas mira el documento COMPLETO, aunque solo se
+            # vayan a leer unas paginas. Si no, acotar el rango escondia la
+            # advertencia mas importante: que los estados van escaneados y que
+            # lo unico legible del documento son las notas.
+            if texto.strip():
+                paginas_con_texto += 1
+            elif pagina.images:
+                paginas_imagen += 1
+
+            if pedidas is not None and n not in pedidas:
+                continue
+
+            # Via A: las tablas que pdfplumber alcance a reconocer.
+            porA = Tabla(periodos=list(tabla.periodos))
             for matriz in pagina.extract_tables() or []:
                 if matriz and len(matriz) > 1:
-                    encontro_tabla = True
-                    _filas_desde_matriz(matriz, f"pagina {n}", tabla)
-            if not encontro_tabla:
-                texto = pagina.extract_text() or ""
-                matriz = [_partir_linea(l) for l in texto.splitlines() if l.strip()]
-                _filas_desde_matriz([m for m in matriz if m], f"pagina {n} (texto)",
-                                    tabla, fusionar_continuaciones=True)
+                    _filas_desde_matriz(matriz, f"pagina {n}", porA)
 
-    if encontro_tabla:
+            # Via B: el texto plano, renglon por renglon, sin el indice.
+            utiles = []
+            for linea in texto.splitlines():
+                if not linea.strip():
+                    continue
+                if _es_linea_de_indice(linea):
+                    lineas_indice += 1
+                    continue
+                utiles.append(linea)
+            porB = Tabla(periodos=list(tabla.periodos))
+            matriz = [m for m in (_partir_linea(l) for l in utiles) if m]
+            _filas_desde_matriz(matriz, f"pagina {n} (texto)", porB,
+                                fusionar_continuaciones=True)
+
+            # Gana la que rescate mas renglones con cifras.
+            if _filas_utiles(porA.filas) >= _filas_utiles(porB.filas) and porA.filas:
+                elegida, cual = porA, "tabla"
+            else:
+                elegida, cual = porB, "texto"
+
+            if not elegida.filas:
+                continue
+            if cual == "tabla":
+                paginas_por_tabla += 1
+            else:
+                paginas_por_texto += 1
+
+            tabla.filas.extend(elegida.filas)
+            for per in elegida.periodos:
+                if per not in tabla.periodos:
+                    tabla.periodos.append(per)
+
+    if pedidas is not None and deteccion is None:
+        tabla.avisos.append(
+            f"Se leyeron unicamente las paginas pedidas ({len(pedidas)} de "
+            f"{total_paginas}). El resto del documento se ignoro.")
+
+    if paginas_por_tabla and paginas_por_texto:
+        tabla.avisos.append(
+            f"Se leyeron {paginas_por_tabla} paginas como tabla y "
+            f"{paginas_por_texto} como texto suelto, segun lo que rescataba mas "
+            f"cifras en cada una. Compare cada renglon contra el documento "
+            f"original antes de confirmar.")
+    elif paginas_por_tabla:
         tabla.avisos.append(
             "Las cifras se reconstruyeron de las tablas del PDF. Un PDF no guarda "
             "celdas, asi que compare cada renglon contra el documento original "
@@ -433,8 +588,30 @@ def leer_pdf(contenido: bytes, tabla: Tabla) -> None:
     else:
         tabla.avisos.append(
             "El PDF no traia tablas reconocibles y se leyo como texto suelto, que "
-            "es la via mas fragil. Revise renglon por renglon. Si el PDF es una "
-            "imagen escaneada, no habra cifras y toca digitarlas o conseguir el Excel.")
+            "es la via mas fragil. Revise renglon por renglon.")
+
+    if lineas_indice:
+        tabla.avisos.append(
+            f"Se descartaron {lineas_indice} lineas de tabla de contenido. En un "
+            f"indice el numero de la derecha es una pagina, no un saldo.")
+
+    if paginas_imagen and deteccion is not None and deteccion.get("encontrado"):
+        tabla.avisos.append(
+            "CUIDADO: el rango se eligio solo, pero este documento tiene paginas "
+            "escaneadas. Si los estados financieros son justamente esas paginas, "
+            "lo que se detecto es un anexo o una nota que se les parece. Abra el "
+            "PDF y confirme que lo leido es el balance y el estado de resultados "
+            "de verdad.")
+
+    if paginas_imagen:
+        total = paginas_imagen + paginas_con_texto
+        tabla.avisos.append(
+            f"ATENCION: {paginas_imagen} de {total} paginas son imagenes sin texto "
+            f"y no se pudieron leer. En los informes anuales los estados firmados "
+            f"suelen ir escaneados, asi que es probable que lo que se alcanzo a "
+            f"leer sean las notas y no los estados. Verifique que las cifras de "
+            f"abajo salgan del balance y del estado de resultados; si no, "
+            f"consiga el archivo en Excel o digite las cuentas a mano.")
 
 
 def _partir_linea(linea: str):
@@ -451,11 +628,17 @@ def _partir_linea(linea: str):
     # Separado por espacios sueltos. Las cifras son la cola del renglon, asi
     # que se corta ahi: partir por los ultimos espacios rompia los nombres
     # largos ("Efectivo y equivalentes 450 380" perdia "equivalentes").
-    cola = re.search(r"^(.*?)((?:\s+\(?-?[\d.,]+\)?%?)+)$", texto)
+    #
+    # La cola admite el signo de moneda delante de cada cifra, porque asi
+    # vienen casi todos los estados financieros publicados en Colombia:
+    # "Total activo corriente $ 8.817.990 $ 6.416.225". Sin esto el "$"
+    # intermedio cortaba la cola y solo se rescataba la ultima columna.
+    cola = re.search(r"^(.*?)((?:\s+\$?\s*\(?-?[\d.,]+\)?%?)+\s*\$?)$", texto)
     if not cola:
         return [texto]
     etiqueta = cola.group(1).strip()
-    cifras = cola.group(2).split()
+    # El "$" es ruido tipografico, no un dato: se descarta al separar.
+    cifras = [c for c in cola.group(2).replace("$", " ").split() if c]
     return ([etiqueta] if etiqueta else []) + cifras
 
 
@@ -466,11 +649,15 @@ EXTENSIONES = {
 }
 
 
-def importar(nombre: str, contenido: bytes) -> Tabla:
+def importar(nombre: str, contenido: bytes, paginas: str = "") -> Tabla:
     """Lee un archivo y devuelve la tabla con el mapeo ya propuesto.
 
     No calcula ni valida nada financiero: eso es del motor, y solo despues de
     que el usuario confirme el mapeo en pantalla.
+
+    `paginas` solo aplica a PDF y acota que paginas se leen ("10-14" o "10,11").
+    Un informe anual trae los estados en dos o tres paginas y ochenta de notas;
+    leerlo entero mezcla las tablas de las notas con el balance.
     """
     extension = "." + nombre.rsplit(".", 1)[-1].lower() if "." in nombre else ""
     lector = EXTENSIONES.get(extension)
@@ -482,7 +669,10 @@ def importar(nombre: str, contenido: bytes) -> Tabla:
         raise ValueError("El archivo llego vacio.")
 
     tabla = Tabla(origen=nombre)
-    lector(contenido, tabla)
+    if extension == ".pdf":
+        lector(contenido, tabla, paginas)
+    else:
+        lector(contenido, tabla)
 
     if not tabla.filas:
         raise ValueError(
@@ -531,17 +721,47 @@ def armar_estados(tabla_cruda: dict, empresa: str = "", moneda: str = "COP",
         "resultados": {},
     }
 
+    # Cuentas que por naturaleza son un monto positivo. Los estados
+    # financieros publicados las presentan entre parentesis, es decir en
+    # negativo, porque los estan restando dentro del encadenamiento:
+    # "Costos de ventas (12.457.813)". El motor las espera positivas.
+    #
+    # Se voltean, pero NUNCA en silencio: cada volteo queda anotado en los
+    # supuestos y se reporta. Verificado con el informe de Grupo Nutresa.
+    SIEMPRE_POSITIVAS = ("costo_ventas", "gastos_operacionales",
+                         "gastos_financieros", "impuestos", "compras",
+                         "depreciacion")
+    ajustes = []
+
     usadas = set()
     for fila in tabla_cruda.get("filas") or []:
         cuenta = fila.get("cuenta")
         if not cuenta or cuenta not in GRUPO or cuenta in usadas:
             continue
         valores = [leer_numero(v) for v in (fila.get("valores") or [])]
-        # Todas las cuentas tienen que traer un valor por periodo: si sobran se
-        # recortan y si faltan se completan con None, nunca con cero.
-        valores = (valores + [None] * len(periodos))[:len(periodos)]
+        # Todas las cuentas tienen que traer un valor por periodo: si faltan se
+        # completan con None, nunca con cero.
+        #
+        # Cuando SOBRAN se conservan los ultimos, no los primeros. En un estado
+        # financiero publicado la columna de la izquierda es el numero de nota:
+        # "Inventarios | 11 | 2.558.764 | 2.447.873". Recortando por la
+        # izquierda se guardaba el 11 como si fuera el saldo del primer
+        # periodo. Verificado con el informe consolidado de Grupo Nutresa.
+        n = len(periodos)
+        if len(valores) > n:
+            valores = valores[-n:]
+        else:
+            valores = valores + [None] * (n - len(valores))
         if all(v is None for v in valores):
             continue
+
+        if cuenta in SIEMPRE_POSITIVAS and any(v is not None and v < 0 for v in valores):
+            valores = [None if v is None else abs(v) for v in valores]
+            ajustes.append(
+                f"'{cuenta}' venia en negativo y se volteo a positivo. Los "
+                f"estados publicados presentan costos y gastos entre parentesis "
+                f"porque los estan restando; el motor los espera como monto.")
+
         datos[GRUPO[cuenta]][cuenta] = valores
         usadas.add(cuenta)
 
@@ -549,4 +769,7 @@ def armar_estados(tabla_cruda: dict, empresa: str = "", moneda: str = "COP",
         raise ValueError(
             "Ninguna fila quedo asignada a una cuenta conocida. Asigne al menos "
             "las cuentas principales antes de analizar.")
+
+    if ajustes:
+        datos["supuestos"] = {"ajustes_importacion": ajustes}
     return datos

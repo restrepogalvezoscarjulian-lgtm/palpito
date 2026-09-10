@@ -64,7 +64,7 @@ def test_un_valor_ausente_no_se_rellena_con_cero():
 
 
 def test_normalizar_quita_tildes_y_puntuacion():
-    assert normalizar("  Depreciación y amortización  ") == "depreciacion y amortizacion"
+    assert normalizar("  Depreciacion y amortizacion  ") == "depreciacion y amortizacion"
     assert normalizar("PROPIEDAD, PLANTA Y EQUIPO") == "propiedad planta y equipo"
 
 
@@ -82,7 +82,7 @@ def test_normalizar_quita_tildes_y_puntuacion():
     ("Costo de ventas", "costo_ventas"),
     ("Utilidad antes de impuestos", "utilidad_antes_impuestos"),
     ("Resultado del ejercicio", "utilidad_neta"),
-    ("Gastos de administración y ventas", "gastos_operacionales"),
+    ("Gastos de administracion y ventas", "gastos_operacionales"),
 ])
 def test_el_diccionario_reconoce_sinonimos_comunes(etiqueta, cuenta):
     assert buscar_cuenta(etiqueta)[0] == cuenta
@@ -258,7 +258,14 @@ def test_si_nada_quedo_asignado_no_se_arma_un_caso_vacio():
 
 
 def test_sobran_o_faltan_columnas_respecto_a_los_periodos():
-    """Las cuentas se recortan o se completan con None, nunca con cero."""
+    """Las cuentas se recortan o se completan con None, nunca con cero.
+
+    Cuando SOBRAN valores se conservan los ultimos. En un estado financiero
+    publicado la columna de la izquierda es el numero de nota
+    ("Inventarios | 11 | 2.558.764 | 2.447.873"), asi que recortar por la
+    izquierda guardaba el numero de nota como si fuera un saldo. Se descubrio
+    importando el informe consolidado de Grupo Nutresa.
+    """
     cruda = {
         "periodos": ["2023", "2024"],
         "filas": [
@@ -267,7 +274,7 @@ def test_sobran_o_faltan_columnas_respecto_a_los_periodos():
         ],
     }
     datos = armar_estados(cruda)
-    assert datos["balance"]["efectivo"] == [100.0, 200.0]
+    assert datos["balance"]["efectivo"] == [200.0, 300.0]
     assert datos["resultados"]["ventas"] == [900.0, None]
 
 

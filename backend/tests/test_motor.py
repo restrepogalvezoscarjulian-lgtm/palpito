@@ -1,8 +1,8 @@
-"""Pruebas del motor de diagnostico financiero.
+"""Pruebas del motor de diagnóstico financiero.
 
-Cada prueba verifica una formula contra un valor calculado a mano.
+Cada prueba verifica una fórmula contra un valor calculado a mano.
 Esta suite es la evidencia de auditoria del proyecto: responde al paso 4 del
-taller ("verifiquen manualmente al menos 4 calculos clave") de forma
+taller ("verifiquen manualmente al menos 4 cálculos clave") de forma
 automatizada y repetible.
 
 Correr con:  pytest -v
@@ -170,9 +170,9 @@ def test_endeudamiento_implicito_difiere_del_informado(ind):
 
 
 def test_razon_corriente_estable_pero_calidad_se_deteriora(ind):
-    """La razon corriente casi no se mueve, pero el efectivo se derrumba."""
+    """La razón corriente casi no se mueve, pero el efectivo se derrumba."""
     rc = ind["razon_corriente"].valores
-    assert abs(rc[1] - rc[0]) < 0.05, "La razon corriente parece estable"
+    assert abs(rc[1] - rc[0]) < 0.05, "La razón corriente parece estable"
 
     efectivo = ind["razon_efectivo"].valores
     assert efectivo[1] < efectivo[0] * 0.6, "El efectivo si cayo fuerte"
@@ -233,7 +233,7 @@ def test_dupont_reconstruye_el_roe(ef, ind):
 
 
 def test_dupont_atribuye_la_caida_al_margen(ef):
-    """La caida del ROE es por margen, no por rotacion ni por apalancamiento."""
+    """La caida del ROE es por margen, no por rotación ni por apalancamiento."""
     var = dupont(ef)["variacion_por_factor_pct"]
     assert var["margen_neto"] < -25          # el margen se desploma
     assert abs(var["rotacion_activos"]) < 1  # la rotacion practicamente no se mueve
@@ -247,7 +247,7 @@ def test_cobertura_de_intereses_se_deteriora(ind):
 
 
 def test_roic_cae_por_debajo_del_costo_de_la_deuda(ind):
-    """Senal de destruccion de valor: el negocio rinde casi lo mismo que cuesta la plata."""
+    """Señal de destruccion de valor: el negocio rinde casi lo mismo que cuesta la plata."""
     roic = ind["roic"].valores[1]
     kd = ind["costo_deuda_implicito"].valores[1]
     assert roic == pytest.approx(19.76, abs=TOL)
@@ -287,7 +287,7 @@ def test_puente_caja_explica_el_endeudamiento(ef):
     """La UODI no alcanzo para financiar KTNO + activos fijos.
 
     Por eso subio la deuda y bajo el efectivo. Es la respuesta a
-    "vendi mas pero tengo menos plata".
+    "vendi más pero tengo menos plata".
     """
     p = puente_caja(ef)
     assert p["disponible"]
@@ -317,7 +317,7 @@ def test_todo_indicador_declara_formula_e_insumos(ind):
 
 
 def test_indicadores_sin_datos_reportan_no_disponible():
-    """Si faltan cuentas, el indicador devuelve None, no un numero inventado."""
+    """Si faltan cuentas, el indicador devuelve None, no un número inventado."""
     ef_vacio = EstadosFinancieros({"periodos": ["2024"], "balance": {}, "resultados": {}})
     for i in calcular_todos(ef_vacio).values():
         assert not i.disponible, f"{i.codigo} invento un valor sin datos"
@@ -330,9 +330,9 @@ from motor.diagnostico import diagnosticar, recomendaciones
 
 def test_diagnostico_detecta_las_alertas_centrales(ef):
     titulos = " | ".join(a.titulo for a in diagnosticar(ef))
-    assert "costo de ventas crece mas rapido" in titulos
-    assert "cartera crece mas rapido" in titulos
-    assert "inventario crece mas rapido" in titulos
+    assert "costo de ventas crece más rápido" in titulos
+    assert "cartera crece más rápido" in titulos
+    assert "inventario crece más rápido" in titulos
     assert "no genero caja suficiente" in titulos
 
 
@@ -382,4 +382,51 @@ def test_empresa_sana_no_dispara_alertas_criticas():
     al = diagnosticar(EstadosFinancieros(datos))
     titulos = " | ".join(a.titulo for a in al)
     assert "no genero caja suficiente" not in titulos
-    assert "cartera crece mas rapido" not in titulos
+    assert "cartera crece más rápido" not in titulos
+
+
+# ============================================== EVA Y CREACION DE VALOR
+
+
+def _con_wacc(tasa):
+    """El caso base con un WACC declarado en los supuestos."""
+    import json
+    with open(CASO, encoding="utf-8") as fh:
+        datos = json.load(fh)
+    datos["supuestos"]["wacc"] = tasa
+    return calcular_todos(EstadosFinancieros(datos))
+
+
+def test_sin_wacc_el_eva_es_no_disponible(ind):
+    """El WACC no se deduce de los estados: si no se declara, no se supone."""
+    assert ind["eva"].valores == [None, None]
+    assert ind["spread_valor"].valores == [None, None]
+
+
+def test_el_spread_es_roic_menos_wacc():
+    ind = _con_wacc(0.14)
+    roic = ind["roic"].valores[0]
+    assert ind["spread_valor"].valores[0] == pytest.approx(roic - 14.0, abs=TOL)
+
+
+def test_el_eva_es_uodi_menos_el_cargo_de_capital():
+    # EVA = UODI - Capital invertido x WACC
+    ind = _con_wacc(0.14)
+    uodi = ind["uodi"].valores[0]
+    capital = ind["capital_invertido"].valores[0]
+    assert ind["eva"].valores[0] == pytest.approx(uodi - capital * 0.14, abs=TOL)
+
+
+def test_un_wacc_mayor_al_roic_vuelve_el_eva_negativo():
+    """Puede haber utilidad contable positiva y EVA negativo a la vez."""
+    ind = _con_wacc(0.40)
+    assert ind["roic"].valores[0] < 40
+    assert ind["eva"].valores[0] < 0
+    assert ind["spread_valor"].valores[0] < 0
+
+
+def test_el_eva_viaja_con_su_trazabilidad(ind):
+    eva = ind["eva"]
+    assert "UODI" in eva.formula
+    assert eva.fuente
+    assert "supuestos.wacc" in eva.insumos

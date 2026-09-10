@@ -1,7 +1,7 @@
-"""Validacion de calidad de los datos ANTES de calcular indicadores.
+"""Validación de calidad de los datos ANTES de calcular indicadores.
 
 Regla de oro del proyecto: si los estados financieros no son consistentes,
-cualquier indicador que se calcule sobre ellos es un numero bonito y falso.
+cualquier indicador que se calcule sobre ellos es un número bonito y falso.
 Este modulo se ejecuta primero y siempre.
 """
 
@@ -32,7 +32,7 @@ def validar(ef: EstadosFinancieros) -> list[Hallazgo]:
 
 
 def _ecuacion_contable(ef: EstadosFinancieros, i: int, periodo: str) -> list[Hallazgo]:
-    """Activo = Pasivo + Patrimonio. La verificacion mas importante de todas."""
+    """Activo = Pasivo + Patrimonio. La verificacion más importante de todas."""
     activo = ef.valor("activo_total", i)
     pasivo = ef.pasivo_total(i)
     patrimonio = ef.valor("patrimonio", i)
@@ -52,8 +52,8 @@ def _ecuacion_contable(ef: EstadosFinancieros, i: int, periodo: str) -> list[Hal
             detalle=(
                 f"Activo total {activo:,.0f} != Pasivo {pasivo:,.0f} + "
                 f"Patrimonio {patrimonio:,.0f} = {pasivo + patrimonio:,.0f}. "
-                "Faltan cuentas de pasivo en la informacion entregada, o hay un "
-                "error de digitacion. Los indicadores de endeudamiento calculados "
+                "Faltan cuentas de pasivo en la información entregada, o hay un "
+                "error de digitación. Los indicadores de endeudamiento calculados "
                 "sobre estos datos quedan subestimados."
             ),
         )
@@ -87,15 +87,15 @@ def _subtotales_balance(ef: EstadosFinancieros, i: int, periodo: str) -> list[Ha
             )
             detalle = (
                 "Existen partidas no informadas dentro del subtotal. No es "
-                "necesariamente un error, pero limita el detalle del analisis."
+                "necesariamente un error, pero limita el detalle del análisis."
             )
         else:
             severidad = "error"
             mensaje = (
-                f"{periodo}: las partidas de {etiqueta} suman {suma:,.0f}, mas que el "
+                f"{periodo}: las partidas de {etiqueta} suman {suma:,.0f}, más que el "
                 f"subtotal declarado ({declarado:,.0f})."
             )
-            detalle = "Esto si es inconsistente: revisar digitacion."
+            detalle = "Esto si es inconsistente: revisar digitación."
         salida.append(
             Hallazgo(severidad=severidad, codigo="SUBTOTAL_BALANCE", mensaje=mensaje, detalle=detalle)
         )
@@ -171,8 +171,8 @@ def _datos_faltantes(ef: EstadosFinancieros) -> list[Hallazgo]:
     """Avisa que indicadores NO se van a poder calcular, y por que."""
     requisitos = {
         "depreciacion": ["EBITDA", "Flujo de Caja Bruto", "Flujo de Caja Libre"],
-        "compras": ["Rotacion de proveedores exacta (se usa costo de ventas como aproximacion)"],
-        "ventas_credito": ["Rotacion de cartera exacta (se usan las ventas totales)"],
+        "compras": ["Rotación de proveedores exacta (se usa costo de ventas como aproximación)"],
+        "ventas_credito": ["Rotación de cartera exacta (se usan las ventas totales)"],
     }
     salida = []
     for cuenta, afectados in requisitos.items():

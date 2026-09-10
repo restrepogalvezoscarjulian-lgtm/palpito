@@ -85,7 +85,7 @@ def test_frontend_se_sirve(cliente):
 
 
 def test_el_analisis_trae_el_puntaje_de_salud(cliente, datos):
-    """El puntaje viaja con su metodologia: sin ella el frontend no puede auditarlo."""
+    """El puntaje viaja con su metodología: sin ella el frontend no puede auditarlo."""
     s = cliente.post("/api/analizar", json=datos).json()["salud"]
     assert s["disponible"] is True
     assert 0 <= s["puntaje"] <= 100
@@ -167,7 +167,7 @@ def test_importar_formato_no_soportado_da_422(cliente):
 def test_del_archivo_al_analisis_sin_digitar_nada(cliente):
     """El recorrido completo: subir, armar y analizar.
 
-    Razon corriente 2024 = 5680 / 2800 = 2,0286 veces.
+    Razón corriente 2024 = 5680 / 2800 = 2,0286 veces.
     """
     tabla = cliente.post("/api/importar",
                          files={"archivo": ("b.xlsx", _excel_demo(),

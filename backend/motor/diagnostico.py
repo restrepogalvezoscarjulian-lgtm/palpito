@@ -1,7 +1,7 @@
 """Motor de reglas: convierte indicadores en alertas priorizadas.
 
 Este modulo NO usa inteligencia artificial. Son reglas explicitas y auditables.
-La IA (modulo narrativa) solo redacta en lenguaje natural lo que aqui se decide,
+La IA (modulo narrativa) solo redacta en lenguaje natural lo que aquí se decide,
 y siempre citando la evidencia numerica que estas reglas producen.
 
 Responde al paso 5 del taller: explicar las causas del deterioro y senalar las
@@ -60,7 +60,7 @@ def _regla_costos_crecen_mas_que_ventas(ef, ind, hor) -> Alerta | None:
         return None
     return Alerta(
         prioridad=1,
-        titulo="El costo de ventas crece mas rapido que las ventas",
+        titulo="El costo de ventas crece más rápido que las ventas",
         explicacion=(
             "Cada peso adicional vendido esta dejando menos margen que antes. "
             "Puede ser alza de proveedores, descuentos comerciales para sostener "
@@ -83,14 +83,14 @@ def _regla_cartera_crece_mas_que_ventas(ef, ind, hor) -> Alerta | None:
     dias = ind["dias_cartera"].valores
     return Alerta(
         prioridad=2,
-        titulo="La cartera crece mas rapido que las ventas",
+        titulo="La cartera crece más rápido que las ventas",
         explicacion=(
             "Se esta vendiendo, pero el dinero se queda en manos de los clientes. "
             "O se alargaron los plazos para poder vender, o la cobranza se relajo."
         ),
         evidencia=[
             f"Cuentas por cobrar: {_fmt(c)}% vs ventas {_fmt(v)}%",
-            f"Dias de cartera: {_fmt(dias[0], ' dias', 1)} -> {_fmt(dias[-1], ' dias', 1)}",
+            f"Días de cartera: {_fmt(dias[0], ' días', 1)} -> {_fmt(dias[-1], ' días', 1)}",
         ],
         cuentas=["cuentas_por_cobrar", "ventas"],
     )
@@ -104,14 +104,14 @@ def _regla_inventario_crece_mas_que_ventas(ef, ind, hor) -> Alerta | None:
     dias = ind["dias_inventario"].valores
     return Alerta(
         prioridad=3,
-        titulo="El inventario crece mas rapido que las ventas",
+        titulo="El inventario crece más rápido que las ventas",
         explicacion=(
-            "Hay mas mercancia parada en bodega por cada peso que se vende. "
-            "Suele indicar referencias de baja rotacion o compras por encima de la demanda real."
+            "Hay más mercancía parada en bodega por cada peso que se vende. "
+            "Suele indicar referencias de baja rotación o compras por encima de la demanda real."
         ),
         evidencia=[
             f"Inventarios: {_fmt(inv)}% vs ventas {_fmt(v)}%",
-            f"Dias de inventario: {_fmt(dias[0], ' dias', 1)} -> {_fmt(dias[-1], ' dias', 1)}",
+            f"Días de inventario: {_fmt(dias[0], ' días', 1)} -> {_fmt(dias[-1], ' días', 1)}",
         ],
         cuentas=["inventarios", "ventas"],
     )
@@ -122,15 +122,15 @@ def _regla_ciclo_caja_se_alarga(ef, ind, hor) -> Alerta | None:
     if c[0] is None or c[-1] is None or c[-1] <= c[0]:
         return None
     dp = ind["dias_proveedores"].valores
-    ev = [f"Ciclo de caja: {_fmt(c[0], ' dias', 1)} -> {_fmt(c[-1], ' dias', 1)} (+{c[-1]-c[0]:,.1f})"]
+    ev = [f"Ciclo de caja: {_fmt(c[0], ' días', 1)} -> {_fmt(c[-1], ' días', 1)} (+{c[-1]-c[0]:,.1f})"]
     if dp[0] is not None and dp[-1] is not None and dp[-1] < dp[0]:
-        ev.append(f"Ademas se le paga MAS RAPIDO a proveedores: {_fmt(dp[0], ' dias', 1)} -> {_fmt(dp[-1], ' dias', 1)}")
+        ev.append(f"Además se le paga MÁS RÁPIDO a proveedores: {_fmt(dp[0], ' días', 1)} -> {_fmt(dp[-1], ' días', 1)}")
     return Alerta(
         prioridad=2,
         titulo="El ciclo de conversion de efectivo se alargo",
         explicacion=(
-            "La plata pasa mas dias fuera de la caja. Cada dia adicional del ciclo "
-            "obliga a financiar mas capital de trabajo, con deuda o con recursos propios."
+            "La plata pasa más días fuera de la caja. Cada día adicional del ciclo "
+            "obliga a financiar más capital de trabajo, con deuda o con recursos propios."
         ),
         evidencia=ev,
         cuentas=["cuentas_por_cobrar", "inventarios", "proveedores"],
@@ -169,7 +169,7 @@ def _regla_cobertura_intereses(ef, ind, hor) -> Alerta | None:
         titulo=("Cobertura de intereses en zona critica" if critica
                 else "La cobertura de intereses se deterioro"),
         explicacion=(
-            "Mide cuantas veces la operacion alcanza a pagar los intereses. "
+            "Mide cuántas veces la operación alcanza a pagar los intereses. "
             "Por debajo de 2 veces, cualquier tropiezo operativo compromete el pago de la deuda."
         ),
         evidencia=[f"Cobertura: {_fmt(c[0], ' veces')} -> {_fmt(c[-1], ' veces')}"],
@@ -189,15 +189,15 @@ def _regla_calidad_liquidez(ef, ind, hor) -> Alerta | None:
         prioridad=2,
         titulo="La liquidez parece estable pero su calidad se deterioro",
         explicacion=(
-            "La razon corriente casi no se movio, asi que a primera vista todo esta bien. "
+            "La razón corriente casi no se movio, así que a primera vista todo esta bien. "
             "Pero el activo corriente crecio a punta de cartera e inventario (lo lento) "
-            "mientras el efectivo (lo liquido) se redujo. Es una senal que se pierde si "
-            "solo se mira la razon corriente."
+            "mientras el efectivo (lo líquido) se redujo. Es una señal que se pierde si "
+            "solo se mira la razón corriente."
         ),
         evidencia=[
-            f"Razon corriente: {_fmt(rc[0])} -> {_fmt(rc[-1])} (casi sin cambio)",
-            f"Prueba acida: {_fmt(ind['prueba_acida'].valores[0])} -> {_fmt(ind['prueba_acida'].valores[-1])}",
-            f"Razon de efectivo: {_fmt(re[0])} -> {_fmt(re[-1])}",
+            f"Razón corriente: {_fmt(rc[0])} -> {_fmt(rc[-1])} (casi sin cambio)",
+            f"Prueba ácida: {_fmt(ind['prueba_acida'].valores[0])} -> {_fmt(ind['prueba_acida'].valores[-1])}",
+            f"Razón de efectivo: {_fmt(re[0])} -> {_fmt(re[-1])}",
         ],
         cuentas=["efectivo", "cuentas_por_cobrar", "inventarios"],
     )
@@ -212,12 +212,12 @@ def _regla_flujo_caja_negativo(ef, ind, hor) -> Alerta | None:
     u, k, a = p["uodi"], p["aumento_ktno"], p["aumento_activos_fijos_neto"]
     return Alerta(
         prioridad=1,
-        titulo="La operacion no genero caja suficiente para financiarse sola",
+        titulo="La operación no genero caja suficiente para financiarse sola",
         explicacion=(
-            "Esta es la respuesta a 'vendi mas pero tengo menos plata'. La utilidad "
-            "operativa despues de impuestos no alcanzo a cubrir lo que se tragaron el "
-            "capital de trabajo y la inversion en activos fijos. La diferencia se cubrio "
-            "con deuda y con el efectivo que habia en caja."
+            "Esta es la respuesta a 'vendi más pero tengo menos plata'. La utilidad "
+            "operativa después de impuestos no alcanzo a cubrir lo que se tragaron el "
+            "capital de trabajo y la inversión en activos fijos. La diferencia se cubrio "
+            "con deuda y con el efectivo que había en caja."
         ),
         evidencia=[
             f"UODI generada: {_fmt(u, '', 0)}",
@@ -263,8 +263,8 @@ def _regla_dupont(ef, ind, hor) -> Alerta | None:
     culpable = min(var, key=lambda k: var[k] if var[k] is not None else 0)
     nombres = {
         "margen_neto": "el MARGEN (rentabilidad por peso vendido)",
-        "rotacion_activos": "la ROTACION (eficiencia de los activos)",
-        "multiplicador_patrimonio": "el APALANCAMIENTO (estructura de financiacion)",
+        "rotacion_activos": "la ROTACIÓN (eficiencia de los activos)",
+        "multiplicador_patrimonio": "el APALANCAMIENTO (estructura de financiación)",
     }
     return Alerta(
         prioridad=2,
@@ -272,13 +272,13 @@ def _regla_dupont(ef, ind, hor) -> Alerta | None:
         explicacion=(
             "El sistema DuPont separa la rentabilidad del socio en tres palancas. "
             "Identificar cual se movio dice donde hay que actuar: margen es un problema "
-            "de precios y costos; rotacion, de eficiencia en activos; apalancamiento, "
+            "de precios y costos; rotación, de eficiencia en activos; apalancamiento, "
             "de estructura de deuda."
         ),
         evidencia=[
             f"ROE: {_fmt(roe[0])}% -> {_fmt(roe[-1])}%",
             f"Margen neto: {_fmt(var['margen_neto'])}%",
-            f"Rotacion de activos: {_fmt(var['rotacion_activos'])}%",
+            f"Rotación de activos: {_fmt(var['rotacion_activos'])}%",
             f"Multiplicador del patrimonio: {_fmt(var['multiplicador_patrimonio'])}%",
         ],
         cuentas=["utilidad_neta", "ventas", "activo_total", "patrimonio"],
@@ -293,7 +293,7 @@ def _regla_endeudamiento_creciente(ef, ind, hor) -> Alerta | None:
     ev = [f"Endeudamiento: {_fmt(e[0])}% -> {_fmt(e[-1])}%"]
     if imp[-1] is not None and abs(imp[-1] - e[-1]) > 1:
         ev.append(
-            f"ATENCION: con el balance cuadrado el endeudamiento real seria "
+            f"ATENCIÓN: con el balance cuadrado el endeudamiento real sería "
             f"{_fmt(imp[-1])}%, no {_fmt(e[-1])}%. Hay pasivos no informados."
         )
     return Alerta(
@@ -309,27 +309,27 @@ def _regla_endeudamiento_creciente(ef, ind, hor) -> Alerta | None:
 
 RECOMENDACIONES = {
     "cuentas_por_cobrar": (
-        "Cartera: revisar politica de plazos y reforzar cobranza. Cada dia menos de "
-        "cartera libera caja sin necesidad de vender mas."
+        "Cartera: revisar política de plazos y reforzar cobranza. Cada día menos de "
+        "cartera libera caja sin necesidad de vender más."
     ),
     "inventarios": (
-        "Inventarios: identificar referencias de baja rotacion y liquidarlas. "
+        "Inventarios: identificar referencias de baja rotación y liquidarlas. "
         "Ajustar las compras a la demanda real, no al descuento por volumen."
     ),
     "costo_ventas": (
         "Costos: renegociar con proveedores y revisar la mezcla de productos. "
-        "Priorizar las referencias de mayor margen de contribucion."
+        "Priorizar las referencias de mayor margen de contribución."
     ),
     "gastos_financieros": (
-        "Deuda: refinanciar las obligaciones mas costosas y alargar plazos para "
+        "Deuda: refinanciar las obligaciones más costosas y alargar plazos para "
         "aliviar la presion sobre la caja."
     ),
     "propiedad_planta_equipo": (
-        "Inversion: aplazar CAPEX no critico hasta que la operacion vuelva a generar "
+        "Inversión: aplazar CAPEX no critico hasta que la operación vuelva a generar "
         "caja propia."
     ),
     "gastos_operacionales": (
-        "Gastos de administracion y ventas: revisar los que crecieron por encima de las ventas."
+        "Gastos de administración y ventas: revisar los que crecieron por encima de las ventas."
     ),
 }
 

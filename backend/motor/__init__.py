@@ -1,1 +1,1 @@
-"""Motor de diagnostico financiero."""
+"""Motor de diagnóstico financiero."""

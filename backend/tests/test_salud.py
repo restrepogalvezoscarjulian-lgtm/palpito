@@ -1,7 +1,7 @@
 """Pruebas del puntaje de salud financiera.
 
-Igual que en el resto del proyecto, cada nota se verifica contra un calculo
-escrito a mano en el docstring. Aqui importa mas que en ningun otro modulo:
+Igual que en el resto del proyecto, cada nota se verifica contra un cálculo
+escrito a mano en el docstring. Aquí importa más que en ningun otro modulo:
 un puntaje que nadie puede reproducir con lapiz y papel es un puntaje que no
 se puede defender en una sustentacion.
 
@@ -68,7 +68,7 @@ def test_interpolar_entre_dos_puntos():
 
 
 def test_interpolar_no_extrapola_fuera_de_rango():
-    """Fuera de los extremos se aplana: nadie saca mas de 100 ni menos de 0."""
+    """Fuera de los extremos se aplana: nadie saca más de 100 ni menos de 0."""
     escala = ((0.5, 0), (2.0, 100))
     assert interpolar(0.1, escala) == pytest.approx(0)
     assert interpolar(50.0, escala) == pytest.approx(100)
@@ -119,10 +119,10 @@ def test_los_criterios_apuntan_a_indicadores_que_existen(ef):
 
 
 def test_banda_por_puntaje():
-    assert banda(92.0)["nombre"] == "Solida"
+    assert banda(92.0)["nombre"] == "Sólida"
     assert banda(65.0)["nombre"] == "Aceptable con reservas"
-    assert banda(45.0)["nombre"] == "Fragil"
-    assert banda(12.0)["nombre"] == "Critica"
+    assert banda(45.0)["nombre"] == "Frágil"
+    assert banda(12.0)["nombre"] == "Crítica"
 
 
 def test_bandas_cubren_toda_la_escala_sin_huecos():
@@ -137,7 +137,7 @@ def test_bandas_cubren_toda_la_escala_sin_huecos():
 
 
 def test_razon_corriente_nivel_calculado_a_mano(salud):
-    """Razon corriente 2024 = 3620 / 2050 = 1,7659 veces.
+    """Razón corriente 2024 = 3620 / 2050 = 1,7659 veces.
 
     Cae en el tramo (1,5 -> 85) a (2,0 -> 100) de la escala:
         85 + (100 - 85) x (1,7659 - 1,5) / (2,0 - 1,5)
@@ -169,7 +169,7 @@ def test_tendencia_neutra_cuando_el_indicador_no_se_movio():
 def test_un_solo_dato_util_no_inventa_tendencia(salud):
     """El costo implicito de la deuda no existe en el primer periodo.
 
-    Por eso el spread ROIC solo tiene un dato util y debe calificarse solo por
+    Por eso el spread ROIC solo tiene un dato útil y debe calificarse solo por
     nivel, en vez de compararse consigo mismo y sacar una tendencia neutra que
     no significa nada.
     """
@@ -190,7 +190,7 @@ def test_ciclo_de_caja_mejora_cuando_baja():
 
 
 def test_el_puntaje_es_la_suma_de_los_aportes(salud):
-    """El total tiene que cuadrar con lo que aporta cada dimension."""
+    """El total tiene que cuadrar con lo que aporta cada dimensión."""
     aportes = sum(d["aporte"] for d in salud["dimensiones"] if d["evaluable"])
     assert salud["puntaje"] == pytest.approx(aportes, abs=0.1)
 
@@ -212,7 +212,7 @@ def test_puntaje_dentro_del_rango(salud):
 def test_un_dato_faltante_no_cuenta_como_cero():
     """Sin gastos financieros no hay cobertura de intereses.
 
-    Ese criterio debe excluirse y su peso pasar al resto de la dimension, no
+    Ese criterio debe excluirse y su peso pasar al resto de la dimensión, no
     arrastrar la nota a cero: "no informado" no es lo mismo que "malo".
     """
     datos = {
@@ -256,8 +256,8 @@ def test_sin_datos_no_se_inventa_un_puntaje():
 def test_el_caso_descuadrado_sale_marcado_como_no_confiable(salud):
     """Comercial Andina no cuadra el balance, y el puntaje tiene que decirlo.
 
-    El numero se calcula igual, pero llega con la advertencia encima: la
-    calidad de los datos sigue siendo puerta previa a cualquier conclusion.
+    El número se calcula igual, pero llega con la advertencia encima: la
+    calidad de los datos sigue siendo puerta previa a cualquier conclusión.
     """
     assert salud["disponible"] is True
     assert salud["confiable"] is False
@@ -265,7 +265,7 @@ def test_el_caso_descuadrado_sale_marcado_como_no_confiable(salud):
 
 
 def test_la_metodologia_viaja_con_el_puntaje(salud):
-    """El frontend tiene que poder pintar la formula al lado de la nota."""
+    """El frontend tiene que poder pintar la fórmula al lado de la nota."""
     m = salud["metodologia"]
     assert m["peso_nivel"] == 70 and m["peso_tendencia"] == 30
     for d in salud["dimensiones"]:

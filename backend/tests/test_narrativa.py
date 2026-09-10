@@ -110,7 +110,7 @@ def test_instrucciones_de_pregunta_exigen_citar_fuentes():
 # ================================================== 3. LLAMADA SIMULADA AL LLM
 
 
-def _simular_respuesta(monkeypatch, contenido="Diagnostico de prueba.", codigo=200):
+def _simular_respuesta(monkeypatch, contenido="Diagnóstico de prueba.", codigo=200):
     """Reemplaza httpx.post por una respuesta falsa. No gasta creditos."""
     capturado = {}
 
@@ -132,7 +132,7 @@ def _simular_respuesta(monkeypatch, contenido="Diagnostico de prueba.", codigo=2
 
 
 def test_narrar_devuelve_el_texto_del_modelo(con_clave_falsa, monkeypatch, analisis):
-    _simular_respuesta(monkeypatch, "La empresa vendio mas pero genero menos caja.")
+    _simular_respuesta(monkeypatch, "La empresa vendio más pero genero menos caja.")
     r = narrativa.narrar(analisis)
     assert r["disponible"] is True
     assert "menos caja" in r["texto"]
@@ -177,7 +177,7 @@ def test_pregunta_muy_larga_se_rechaza(con_clave_falsa, monkeypatch, analisis):
 
 def test_responder_incluye_la_pregunta_en_el_mensaje(con_clave_falsa, monkeypatch, analisis):
     cap = _simular_respuesta(monkeypatch, "Respuesta.\nFuentes: Ventas 8,900 -> 10,600")
-    r = narrativa.responder(analisis, "Por que tengo menos plata si vendi mas?")
+    r = narrativa.responder(analisis, "Por que tengo menos plata si vendi más?")
     assert "menos plata" in cap["json"]["messages"][1]["content"]
     assert "Fuentes:" in r["texto"]
 

@@ -1,10 +1,10 @@
-"""Calculo de indicadores financieros.
+"""Cálculo de indicadores financieros.
 
-Todo lo que hay aqui es deterministico: mismas entradas, mismas salidas,
+Todo lo que hay aquí es determinista: mismas entradas, mismas salidas,
 sin intervencion de ningun modelo de lenguaje. Cada indicador viaja con su
-formula y sus insumos para que cualquiera pueda auditar de donde salio.
+fórmula y sus insumos para que cualquiera pueda auditar de donde salio.
 
-Criterios adoptados y fuentes en FORMULAS.md.
+Criterios adoptados y fuentes en FÓRMULAS.md.
 """
 
 from __future__ import annotations
@@ -12,9 +12,9 @@ from __future__ import annotations
 from .modelos import EstadosFinancieros, Indicador
 
 # Fuentes bibliograficas citadas por los indicadores
-BAENA = "Baena Toro, D. (2014). Analisis financiero: enfoque y proyecciones"
-GARCIA = "Garcia S., O. L. Administracion financiera: fundamentos y aplicaciones"
-CARTILLA = "Barbosa Guerrero, L. M. (2021). Analisis y gerencia financiera, U. El Bosque"
+BAENA = "Baena Toro, D. (2014). Análisis financiero: enfoque y proyecciones"
+GARCIA = "Garcia S., O. L. Administración financiera: fundamentos y aplicaciones"
+CARTILLA = "Barbosa Guerrero, L. M. (2021). Análisis y gerencia financiera, U. El Bosque"
 
 
 def _div(numerador, denominador):
@@ -56,7 +56,7 @@ def analisis_vertical(ef: EstadosFinancieros) -> dict:
 
 
 def analisis_horizontal(ef: EstadosFinancieros) -> dict:
-    """Variacion absoluta y relativa entre el primer y el ultimo periodo."""
+    """Variacion absoluta y relativa entre el primer y el último periodo."""
     salida = {}
     for grupo, cuentas in (("balance", ef.balance), ("resultados", ef.resultados)):
         filas = {}
@@ -84,7 +84,7 @@ def _liquidez(ef: EstadosFinancieros) -> list[Indicador]:
     return [
         Indicador(
             codigo="razon_corriente",
-            nombre="Razon corriente",
+            nombre="Razón corriente",
             categoria="Liquidez",
             valores=_serie(ef, lambda i: _div(ef.valor("activo_corriente", i), ef.valor("pasivo_corriente", i))),
             unidad="veces",
@@ -96,7 +96,7 @@ def _liquidez(ef: EstadosFinancieros) -> list[Indicador]:
         ),
         Indicador(
             codigo="prueba_acida",
-            nombre="Prueba acida",
+            nombre="Prueba ácida",
             categoria="Liquidez",
             valores=_serie(ef, lambda i: _div(
                 None if None in (ef.valor("activo_corriente", i), ef.valor("inventarios", i))
@@ -106,18 +106,18 @@ def _liquidez(ef: EstadosFinancieros) -> list[Indicador]:
             formula="(Activo corriente - Inventarios) / Pasivo corriente",
             insumos=["activo_corriente", "inventarios", "pasivo_corriente"],
             fuente=BAENA,
-            nota="Quita el inventario, que es el activo corriente mas lento de volverse caja.",
+            nota="Quita el inventario, que es el activo corriente más lento de volverse caja.",
         ),
         Indicador(
             codigo="razon_efectivo",
-            nombre="Razon de efectivo",
+            nombre="Razón de efectivo",
             categoria="Liquidez",
             valores=_serie(ef, lambda i: _div(ef.valor("efectivo", i), ef.valor("pasivo_corriente", i))),
             unidad="veces",
             formula="Efectivo / Pasivo corriente",
             insumos=["efectivo", "pasivo_corriente"],
             fuente=BAENA,
-            nota="La prueba mas exigente: solo cuenta la plata que ya esta en el banco.",
+            nota="La prueba más exigente: solo cuenta la plata que ya esta en el banco.",
         ),
         Indicador(
             codigo="capital_trabajo_neto",
@@ -130,7 +130,7 @@ def _liquidez(ef: EstadosFinancieros) -> list[Indicador]:
             formula="Activo corriente - Pasivo corriente",
             insumos=["activo_corriente", "pasivo_corriente"],
             fuente=GARCIA,
-            nota="Garcia advierte que esta definicion contable es limitada. "
+            nota="Garcia advierte que esta definición contable es limitada. "
                  "El KTNO es la medida operativa correcta.",
         ),
     ]
@@ -169,53 +169,53 @@ def _actividad(ef: EstadosFinancieros) -> list[Indicador]:
             return None
         return partes[0] + partes[1] - partes[2]
 
-    proxy_cartera = " (se usan ventas totales: el caso no separa ventas a credito)" if usa_proxy_cartera else ""
-    proxy_compras = " (se usa costo de ventas como aproximacion de compras)" if usa_proxy_compras else ""
+    proxy_cartera = " (se usan ventas totales: el caso no separa ventas a crédito)" if usa_proxy_cartera else ""
+    proxy_compras = " (se usa costo de ventas como aproximación de compras)" if usa_proxy_compras else ""
 
     return [
         Indicador(
             codigo="dias_cartera",
-            nombre="Dias de cartera",
+            nombre="Días de cartera",
             categoria="Actividad",
             valores=_serie(ef, lambda i: dias_de(base_cartera, "cuentas_por_cobrar", i)),
             unidad="dias",
-            formula=f"{dias} / (Ventas a credito / Cuentas por cobrar)",
+            formula=f"{dias} / (Ventas a crédito / Cuentas por cobrar)",
             insumos=[base_cartera, "cuentas_por_cobrar"],
             fuente=CARTILLA,
-            nota="Cuanto se demora en promedio en cobrar." + proxy_cartera,
+            nota="Cuánto se demora en promedio en cobrar." + proxy_cartera,
         ),
         Indicador(
             codigo="dias_inventario",
-            nombre="Dias de inventario",
+            nombre="Días de inventario",
             categoria="Actividad",
             valores=_serie(ef, lambda i: dias_de(base_compras, "inventarios", i)),
             unidad="dias",
             formula=f"{dias} / (Costo de ventas / Inventarios)",
             insumos=["costo_ventas", "inventarios"],
             fuente=CARTILLA,
-            nota="Cuanto tiempo la mercancia se queda en bodega antes de venderse.",
+            nota="Cuánto tiempo la mercancía se queda en bodega antes de venderse.",
         ),
         Indicador(
             codigo="dias_proveedores",
-            nombre="Dias de proveedores",
+            nombre="Días de proveedores",
             categoria="Actividad",
             valores=_serie(ef, lambda i: dias_de(base_compras, "proveedores", i)),
             unidad="dias",
             formula=f"{dias} / (Compras / Proveedores)",
             insumos=[base_compras, "proveedores"],
             fuente=CARTILLA,
-            nota="Cuanto se demora en pagarle a los proveedores." + proxy_compras,
+            nota="Cuánto se demora en pagarle a los proveedores." + proxy_compras,
         ),
         Indicador(
             codigo="ciclo_conversion_efectivo",
-            nombre="Ciclo de conversion de efectivo",
+            nombre="Ciclo de conversión de efectivo",
             categoria="Actividad",
             valores=_serie(ef, ciclo),
             unidad="dias",
-            formula="Dias de cartera + Dias de inventario - Dias de proveedores",
+            formula="Días de cartera + Días de inventario - Días de proveedores",
             insumos=["cuentas_por_cobrar", "inventarios", "proveedores"],
             fuente=GARCIA,
-            nota="Dias que la plata pasa fuera de la caja. Entre mas alto, mas capital "
+            nota="Días que la plata pasa fuera de la caja. Entre más alto, más capital "
                  "de trabajo hay que financiar.",
         ),
         Indicador(
@@ -240,19 +240,19 @@ def _actividad(ef: EstadosFinancieros) -> list[Indicador]:
             formula="KTNO / Ventas",
             insumos=["cuentas_por_cobrar", "inventarios", "proveedores", "ventas"],
             fuente=GARCIA,
-            nota="Cuantos centavos de capital de trabajo exige cada peso vendido. "
-                 "Entre mas bajo, mejor.",
+            nota="Cuántos centavos de capital de trabajo exige cada peso vendido. "
+                 "Entre más bajo, mejor.",
         ),
         Indicador(
             codigo="rotacion_activos",
-            nombre="Rotacion de activos totales",
+            nombre="Rotación de activos totales",
             categoria="Actividad",
             valores=_serie(ef, lambda i: _div(ef.valor("ventas", i), ef.valor("activo_total", i))),
             unidad="veces",
             formula="Ventas / Activo total",
             insumos=["ventas", "activo_total"],
             fuente=BAENA,
-            nota="Cuantos pesos vende la empresa por cada peso invertido en activos.",
+            nota="Cuántos pesos vende la empresa por cada peso invertido en activos.",
         ),
     ]
 
@@ -292,9 +292,9 @@ def _endeudamiento(ef: EstadosFinancieros) -> list[Indicador]:
             formula="(Activo total - Patrimonio) / Activo total",
             insumos=["activo_total", "patrimonio"],
             fuente=BAENA,
-            nota="Version que fuerza el cuadre del balance. Si difiere de la anterior, "
+            nota="Versión que fuerza el cuadre del balance. Si difiere de la anterior, "
                  "es porque hay pasivos no informados. LA DIFERENCIA ENTRE AMBAS ES UN "
-                 "DIAGNOSTICO EN SI MISMO.",
+                 "DIAGNÓSTICO EN SI MISMO.",
         ),
         Indicador(
             codigo="apalancamiento_total",
@@ -305,7 +305,7 @@ def _endeudamiento(ef: EstadosFinancieros) -> list[Indicador]:
             formula="Pasivo total / Patrimonio",
             insumos=["pasivo_corriente", "deuda_financiera_lp", "patrimonio"],
             fuente=CARTILLA,
-            nota="Cuantos pesos debe la empresa por cada peso de los socios.",
+            nota="Cuántos pesos debe la empresa por cada peso de los socios.",
         ),
         Indicador(
             codigo="multiplicador_patrimonio",
@@ -327,7 +327,7 @@ def _endeudamiento(ef: EstadosFinancieros) -> list[Indicador]:
             formula="Utilidad operacional (EBIT) / Gastos financieros",
             insumos=["utilidad_operacional", "gastos_financieros"],
             fuente=GARCIA,
-            nota="Cuantas veces la operacion alcanza a pagar los intereses. "
+            nota="Cuántas veces la operación alcanza a pagar los intereses. "
                  "Por debajo de 2 veces se considera zona de riesgo.",
         ),
         Indicador(
@@ -352,6 +352,12 @@ def _endeudamiento(ef: EstadosFinancieros) -> list[Indicador]:
 
 
 def _rentabilidad(ef: EstadosFinancieros) -> list[Indicador]:
+    # El WACC no se puede deducir de los estados financieros: depende de lo que
+    # exigen los dueños, que es un dato externo. Si el caso no lo declara, el
+    # EVA y el spread se reportan como no disponibles en vez de suponerse. Un
+    # WACC inventado contamina toda la lectura de creacion de valor.
+    wacc = ef.supuestos.get("wacc")
+
     def margen(cuenta):
         def fn(i):
             v = _div(ef.valor(cuenta, i), ef.valor("ventas", i))
@@ -378,7 +384,7 @@ def _rentabilidad(ef: EstadosFinancieros) -> list[Indicador]:
             codigo="margen_bruto", nombre="Margen bruto", categoria="Rentabilidad",
             valores=_serie(ef, margen("utilidad_bruta")), unidad="%",
             formula="Utilidad bruta / Ventas", insumos=["utilidad_bruta", "ventas"],
-            fuente=BAENA, nota="Lo que queda despues de pagar el costo de la mercancia.",
+            fuente=BAENA, nota="Lo que queda después de pagar el costo de la mercancía.",
         ),
         Indicador(
             codigo="margen_operacional", nombre="Margen operacional", categoria="Rentabilidad",
@@ -386,7 +392,7 @@ def _rentabilidad(ef: EstadosFinancieros) -> list[Indicador]:
             formula="Utilidad operacional / Ventas", insumos=["utilidad_operacional", "ventas"],
             fuente=BAENA,
             nota="El margen del negocio en si, sin contar como esta financiado. "
-                 "Garcia lo considera el renglon mas importante del estado de resultados.",
+                 "Garcia lo considera el renglon más importante del estado de resultados.",
         ),
         Indicador(
             codigo="margen_neto", nombre="Margen neto", categoria="Rentabilidad",
@@ -404,7 +410,7 @@ def _rentabilidad(ef: EstadosFinancieros) -> list[Indicador]:
             insumos=["utilidad_operacional", "activo_total"], fuente=CARTILLA,
             nota="Se usa la utilidad OPERACIONAL, no la neta, para medir el activo con "
                  "independencia de como este financiado. La cartilla del curso invierte "
-                 "esta division en su ejemplo (ver FORMULAS.md).",
+                 "esta division en su ejemplo (ver FÓRMULAS.md).",
         ),
         Indicador(
             codigo="roe", nombre="ROE (rentabilidad del patrimonio)", categoria="Rentabilidad",
@@ -421,9 +427,11 @@ def _rentabilidad(ef: EstadosFinancieros) -> list[Indicador]:
             valores=_serie(ef, lambda i: (lambda v: None if v is None else v * 100)(tasa_impuestos(i))),
             unidad="%", formula="Impuestos / Utilidad antes de impuestos",
             insumos=["impuestos", "utilidad_antes_impuestos"], fuente=BAENA,
+            nota="Lo que la empresa realmente paga de impuesto sobre lo que gana, que "
+                 "casi nunca coincide con la tarifa nominal. Es el insumo del UODI.",
         ),
         Indicador(
-            codigo="uodi", nombre="UODI (utilidad operativa despues de impuestos)",
+            codigo="uodi", nombre="UODI (utilidad operativa después de impuestos)",
             categoria="Valor", valores=_serie(ef, uodi), unidad="monto",
             formula="UAII x (1 - tasa de impuestos)",
             insumos=["utilidad_operacional", "impuestos", "utilidad_antes_impuestos"],
@@ -448,6 +456,33 @@ def _rentabilidad(ef: EstadosFinancieros) -> list[Indicador]:
             nota="Si el ROIC no supera el costo del capital (WACC), la empresa destruye "
                  "valor aunque reporte utilidades.",
         ),
+        Indicador(
+            codigo="spread_valor", nombre="Spread de valor (ROIC - WACC)", categoria="Valor",
+            valores=_serie(ef, lambda i: (
+                None
+                if wacc is None or _div(uodi(i), capital_invertido(i)) is None
+                else (_div(uodi(i), capital_invertido(i)) - wacc) * 100
+            )),
+            unidad="%", formula="ROIC - WACC",
+            insumos=["utilidad_operacional", "capital_invertido", "supuestos.wacc"],
+            fuente=GARCIA,
+            nota="Los puntos porcentuales que el negocio gana por encima de lo que le "
+                 "cuesta la plata. Si es negativo, la empresa destruye valor aunque "
+                 "reporte utilidades. Requiere declarar el WACC en los supuestos.",
+        ),
+        Indicador(
+            codigo="eva", nombre="EVA (valor económico agregado)", categoria="Valor",
+            valores=_serie(ef, lambda i: (
+                None if (wacc is None or uodi(i) is None or capital_invertido(i) is None)
+                else uodi(i) - capital_invertido(i) * wacc
+            )),
+            unidad="monto", formula="EVA = UODI - (Capital invertido x WACC)",
+            insumos=["utilidad_operacional", "capital_invertido", "supuestos.wacc"],
+            fuente=GARCIA,
+            nota="La utilidad que queda DESPUÉS de pagarle a todo el mundo, dueños "
+                 "incluidos. Una empresa con utilidad contable positiva puede tener EVA "
+                 "negativo: gana, pero menos de lo que exige el capital que usa.",
+        ),
     ]
 
 
@@ -455,9 +490,9 @@ def _rentabilidad(ef: EstadosFinancieros) -> list[Indicador]:
 
 
 def dupont(ef: EstadosFinancieros) -> dict:
-    """Descomposicion del ROE en sus tres palancas.
+    """Descomposición del ROE en sus tres palancas.
 
-    ROE = Margen neto x Rotacion de activos x Multiplicador del patrimonio
+    ROE = Margen neto x Rotación de activos x Multiplicador del patrimonio
 
     Permite responder: la rentabilidad cambio por precio, por eficiencia o por deuda.
     """
@@ -491,11 +526,11 @@ def dupont(ef: EstadosFinancieros) -> dict:
 
 
 def puente_caja(ef: EstadosFinancieros) -> dict:
-    """El analisis de Oscar Leon Garcia: la utilidad no es plata.
+    """El análisis de Oscar Leon Garcia: la utilidad no es plata.
 
     Compara lo que el negocio genero contra lo que se trago el capital de
-    trabajo y los activos fijos. Explica por que la empresa puede vender mas,
-    reportar utilidades y aun asi quedarse sin caja.
+    trabajo y los activos fijos. Explica por que la empresa puede vender más,
+    reportar utilidades y aún así quedarse sin caja.
     """
     if ef.n_periodos < 2:
         return {"disponible": False, "motivo": "Se requieren al menos dos periodos."}
@@ -534,11 +569,11 @@ def puente_caja(ef: EstadosFinancieros) -> dict:
         "variacion_deuda_financiera": d_deuda,
         "es_aproximacion": not tiene_depreciacion,
         "advertencia": (
-            "Aproximacion: no se informo la depreciacion, por lo que no se puede "
+            "Aproximación: no se informo la depreciación, por lo que no se puede "
             "sumar al flujo de caja bruto ni separar el CAPEX de reposicion del de "
             "crecimiento. El resultado subestima el flujo real."
         ) if not tiene_depreciacion else "",
-        "formula": "FCL = UODI + Depreciacion - Aumento KTNO - Inversion en activos fijos",
+        "formula": "FCL = UODI + Depreciación - Aumento KTNO - Inversión en activos fijos",
         "fuente": GARCIA,
     }
 
@@ -553,7 +588,7 @@ def calcular_todos(ef: EstadosFinancieros) -> dict[str, Indicador]:
 
 
 def calcular_completo(ef: EstadosFinancieros) -> dict:
-    """Paquete completo: indicadores + analisis estructurales."""
+    """Paquete completo: indicadores + análisis estructurales."""
     return {
         "empresa": ef.empresa,
         "periodos": ef.periodos,

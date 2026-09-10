@@ -277,9 +277,263 @@ Las figuras 17 y 18 del Módulo 1 muestran `+ Gastos administrativos` y
 `+ Gastos de ventas` cuando en realidad se restan. Es cosmético en una hoja de
 cálculo, pero traducido literalmente a código sumaría los gastos.
 
+### 8.6 TIR del taller de la panadería Espiga
+
+**Dónde:** sesión 6 del curso (2 de septiembre de 2026), corrección del taller
+en clase, minuto 62:38.
+
+**Lo que se dijo:** que la TIR del proyecto es **16,7%**.
+
+**El problema:** a esa tasa el proyecto no es viable, y el propio profesor
+concluyó que sí lo era. Descontando los flujos al 16,7%:
+
+| Año | Flujo | VP al 16,7% |
+|---|---|---|
+| 1 | 400 | 342,8 |
+| 2 | 500 | 367,1 |
+| 3 | 600 | 377,5 |
+| 4 | 700 | 377,4 |
+| | | **1.464,8** |
+
+Como 1.464,8 < 1.500 de inversión, el VPN al 16,7% sería **negativo**. Pero la
+TIR es por definición la tasa que hace el VPN exactamente cero, así que 16,7% no
+puede ser la TIR de este proyecto.
+
+**Criterio adoptado:** la TIR correcta es **15,63%**. A esa tasa el VPN sí da
+cero. Sigue siendo mayor que el 10% de descuento exigido, así que **la conclusión
+del profesor no cambia**: el proyecto es viable por TIR. Lo que cambia es la
+cifra.
+
+El resto del taller sí coincide exactamente con lo calculado en clase: VP de los
+flujos 1.706, VPN 206, payback descontado 3,57 años e índice de rentabilidad
+1,14. La discrepancia está aislada en la TIR.
+
+Verificado en `test_tir_espiga_discrepa_de_la_clase`, que comprueba las dos
+cosas: que el motor da 15,63% y que al 16,7% el VPN sería negativo.
+
+
 ---
 
-## 9. Indicadores pendientes
+## 9. Evaluación financiera de proyectos
+
+Módulo pedido en la sesión 6 del curso (2 de septiembre de 2026). Vive en
+`backend/motor/proyectos.py` y se prueba en `backend/tests/test_proyectos.py`.
+
+### 9.1 Convención de signos
+
+La inversión inicial viaja **aparte de los flujos y como número positivo**; el
+motor le pone el signo negativo al armar la serie. Se hizo así porque confundir
+ese signo es el error más frecuente del tema, y porque el índice de rentabilidad
+necesita distinguir la inversión de los flujos para poder dividir uno por otro.
+
+`serie_completa()` devuelve `[-inversión, flujo₁, flujo₂, …]`.
+
+### 9.2 WACC — costo promedio ponderado de capital
+
+```
+WACC = E/(D+E) × Ke + D/(D+E) × Kd × (1 − t)
+```
+
+El escudo fiscal `(1 − t)` se aplica **solo** al costo de la deuda, porque los
+intereses son deducibles y los dividendos no. Esa es la razón de fondo por la
+que la deuda "cuesta menos" que el patrimonio.
+
+Consecuencia importante: **los intereses no se vuelven a restar dentro del flujo
+de caja del proyecto**, porque ya están contenidos en la tasa de descuento.
+Restarlos otra vez los contaría dos veces. El profesor lo dijo explícitamente al
+enumerar qué no entra en el flujo.
+
+Si falta cualquier insumo, `calcular_wacc` devuelve `valor: None` y la lista de
+faltantes. No se supone ninguno: un WACC inventado contamina todos los
+indicadores del proyecto.
+
+### 9.3 Valor presente y VPN
+
+```
+VP  = VF / (1 + i)^t
+VPN = Σ FCt / (1 + WACC)^t     (con la inversión en t = 0)
+```
+
+Criterio: crea valor si VPN > 0; indiferente si es 0; se descarta si es negativo.
+
+El motor devuelve además la **tabla completa** periodo a periodo (flujo, factor,
+valor presente y acumulado) y no solo el total, para que cualquiera pueda cuadrar
+renglón por renglón contra su propio Excel. Ese fue el encargo explícito de la
+sesión 5: comprobar que la IA no alucina.
+
+### 9.4 TIR
+
+La tasa que hace VPN = 0. Se resuelve por **bisección**, no con fórmula cerrada,
+porque para más de dos periodos no existe fórmula cerrada: es un polinomio. La
+bisección es más lenta que Newton pero no se escapa, y aquí son cuatro o cinco
+periodos.
+
+Devuelve `None` cuando los flujos no cambian de signo. Sin cambio de signo no hay
+raíz: un proyecto que solo recibe plata no tiene rentabilidad, tiene un regalo.
+
+Criterio: se acepta si TIR > WACC.
+
+### 9.5 TIR modificada
+
+```
+TIRM = (VF de los flujos positivos / VP de los negativos)^(1/n) − 1
+```
+
+Corrige la debilidad que el propio profesor señaló: la TIR supone que cada peso
+que sale del proyecto se reinvierte **a la tasa del propio proyecto**. Si un
+proyecto rinde 40%, eso casi nunca es cierto. La TIRM reinvierte al WACC, que es
+lo que la empresa realmente consigue. Por eso la TIRM suele quedar entre el WACC
+y la TIR, y es la cifra más creíble de las dos.
+
+### 9.6 Payback simple y descontado
+
+```
+Payback = año antes de recuperar + (pendiente / flujo del año de recuperación)
+```
+
+Se calculan **los dos** y se reportan **los dos**, porque la diferencia entre
+ellos es justamente lo que cambia la recomendación. En el taller de la panadería
+Espiga el payback simple da 3,00 años exactos —cumple el plazo que exige la
+junta— y el descontado da 3,57 —no lo cumple—. Reportar solo uno sería esconder
+el hallazgo.
+
+Criterio: se acepta si es menor al plazo exigido. Si no hay plazo definido, no
+se penaliza.
+
+### 9.7 Índice de rentabilidad
+
+```
+IR = VP de los flujos futuros / Inversión inicial
+```
+
+Cuánto valor presente genera cada peso invertido. Es el criterio que manda cuando
+el presupuesto está racionado y hay que escoger entre proyectos. Criterio: crea
+valor si IR > 1. Matemáticamente IR > 1 equivale a VPN > 0; lo que aporta es la
+**escala**, que el VPN no muestra.
+
+Limitación declarada: no sirve para comparar proyectos de tamaños muy distintos.
+
+### 9.8 Flujo de caja mensual a 12 meses
+
+El saldo final de un mes es el saldo inicial del siguiente. Ese encadenamiento es
+todo el punto del ejercicio.
+
+Sirve para detectar el **descalce**: un proyecto puede tener VPN positivo y aun
+así quebrar la empresa si la caja se agota a mitad de año. Fue el caso que el
+profesor puso en clase —el CAPEX de marzo— y el de Textiles del Pacífico, que
+produce entre julio y septiembre pero recauda entre noviembre y enero.
+
+El motor reporta los meses en déficit y el **faltante máximo**, que es el monto
+mínimo que habría que conseguir o diferir para sostener la operación.
+
+Se registra por causación de caja, no contable: si se vende hoy y pagan en
+octubre, la entrada va en octubre.
+
+### 9.9 Escenarios y punto de quiebre
+
+Tres escenarios: conservador (−20%), base y optimista (+20%). **La inversión no
+se mueve entre escenarios**: ya está comprometida. Lo incierto son los ingresos
+futuros, y mover ambos a la vez escondería el riesgo real.
+
+El punto de quiebre sale en forma cerrada porque el VPN es lineal en la variación
+de los flujos:
+
+```
+Caída tolerada = 1 − (Inversión / VP de los flujos)
+```
+
+Es la holgura del proyecto en una sola cifra. Un proyecto que aguanta una caída
+del 30% es robusto; uno que se cae con el 2% es una apuesta, por más que su VPN
+sea positivo. Un VPN positivo en un solo escenario no es una decisión.
+
+### 9.10 Semáforo y veredicto
+
+Cuatro criterios decisivos: VPN, TIR, índice de rentabilidad y payback descontado.
+
+| Semáforo | Condición |
+|---|---|
+| 🟢 verde — viable | Crea valor y ningún criterio sale desfavorable |
+| 🟡 amarillo — viable con reparos | Crea valor pero incumple algún criterio |
+| 🔴 rojo — no viable | VPN ≤ 0 |
+
+El veredicto se construye **desde** las métricas y no al revés, igual que el
+puntaje de salud: si alguien no está de acuerdo con un criterio, discute ese
+criterio y no la conclusión entera. Los reparos se nombran explícitamente; una
+junta que aprueba sin conocerlos fue mal asesorada.
+
+---
+
+## 10. EVA y creación de valor
+
+```
+Spread = ROIC − WACC
+EVA    = UODI − (Capital invertido × WACC)
+```
+
+El EVA es la utilidad que queda **después de pagarle a todo el mundo, dueños
+incluidos**. Una empresa con utilidad contable positiva puede tener EVA negativo:
+gana, pero menos de lo que exige el capital que usa.
+
+El WACC **no se deduce de los estados financieros** —depende de lo que exigen los
+dueños, que es un dato externo—. Si el caso no lo declara en `supuestos.wacc`, el
+EVA y el spread se reportan como no disponibles en vez de suponerse.
+
+---
+
+## 11. Benchmark sectorial
+
+Vive en `backend/motor/benchmark.py`. Pedido en la sesión 5: *"poder comparar
+por ejemplo contra benchmarks sectoriales y ver si lo que estamos haciendo está
+bien o está mal en la compañía"*.
+
+### 11.1 Las referencias no se inventan
+
+Misma regla que el WACC: **las cifras del sector son un dato externo**. No se
+deducen de los estados financieros de una empresa. Si no se declaran, el
+indicador se reporta como *sin referencia* y no se compara.
+
+Comparar mal es peor que no comparar: una empresa que sale "por encima del
+sector" contra una cifra inventada toma decisiones sobre nada.
+
+En Colombia las referencias se construyen con los estados financieros que las
+empresas le reportan a la **Superintendencia de Sociedades**, o con los informes
+del gremio del sector. La interfaz pide anotar la fuente para poder sustentarla.
+
+### 11.2 La dirección de mejora se hereda del puntaje
+
+`MEJORA` se construye leyendo `CRITERIOS` de `salud.py`. No se redefine aquí a
+propósito: si el puntaje dice que bajar el endeudamiento es mejorar, el
+benchmark no puede decir lo contrario. Una prueba fija esa igualdad.
+
+Estar por encima del sector es favorable o desfavorable **según el indicador**:
+una razón corriente más alta que el sector es mejor; unos días de cartera más
+altos son peores.
+
+Los indicadores sin dirección conocida se reportan con su posición pero **sin
+veredicto**: se dice dónde está la empresa y se deja que el analista lo
+interprete.
+
+### 11.3 La holgura es relativa
+
+```
+en línea  si  |valor − referencia| ≤ 10% de la referencia
+```
+
+Relativa y no absoluta porque una diferencia de 0,1 significa cosas muy
+distintas sobre una razón corriente de 1,8 que sobre un margen de 40.
+
+### 11.4 Qué no se compara
+
+Los **montos** quedan fuera: un capital de trabajo de 1.570 millones no dice
+nada frente al sector sin saber el tamaño de la empresa. Solo se comparan
+razones y porcentajes.
+
+Se usa el **último periodo informado**, no el promedio: el benchmark responde a
+"cómo estoy hoy frente al sector".
+
+---
+
+## 12. Indicadores pendientes
 
 Requieren datos que el caso base no informa. Están en el alcance del curso y se
 agregarán cuando lleguen casos que los soporten:
@@ -289,6 +543,4 @@ agregarán cuando lleguen casos que los soporten:
 | EBITDA | Depreciación y amortización |
 | GAO / GAF / GAT | Costos fijos y variables separados, dividendos |
 | Punto de equilibrio | Precio unitario, costo variable unitario, costos fijos |
-| WACC | Costo del patrimonio (Ke), estructura objetivo |
-| EVA | WACC |
 | Flujo de caja libre exacto | Depreciación, CAPEX de reposición vs. crecimiento |

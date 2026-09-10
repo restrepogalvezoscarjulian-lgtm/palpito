@@ -1,7 +1,7 @@
-"""API HTTP del diagnostico financiero.
+"""API HTTP del diagnóstico financiero.
 
 Expone el motor por HTTP y sirve la interfaz web. Un solo servicio, un solo
-contenedor. La clave de OpenRouter (bloque 3) vivira aqui, del lado del
+contenedor. La clave de OpenRouter (bloque 3) vivira aquí, del lado del
 servidor, nunca en el navegador.
 
 Correr en local:  uvicorn api:app --reload
@@ -14,7 +14,7 @@ import json
 from dataclasses import asdict
 from pathlib import Path
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -29,7 +29,14 @@ from motor.indicadores import (
 )
 from motor import narrativa
 from motor.modelos import EstadosFinancieros
+from motor.benchmark import codigos_comparables, comparar
 from motor.importacion import CUENTAS, GRUPO, armar_estados, importar
+from motor.proyectos import (
+    Proyecto,
+    calcular_wacc,
+    evaluar_proyecto,
+    flujo_caja_mensual,
+)
 from motor.salud import puntaje_salud
 from motor.validacion import resumen, semaforo, validar
 
@@ -50,8 +57,8 @@ if _ENV.exists():
 app = FastAPI(
     title="Palpito",
     description=(
-        "Motor deterministico de analisis financiero. Los indicadores se calculan "
-        "con formulas auditables; la inteligencia artificial solo redacta sobre "
+        "Motor determinista de análisis financiero. Los indicadores se calculan "
+        "con fórmulas auditables; la inteligencia artificial solo redacta sobre "
         "resultados ya verificados."
     ),
     version="0.3.0",
@@ -107,6 +114,8 @@ def _analizar(ef: EstadosFinancieros) -> dict:
         "puente_caja": puente_caja(ef),
         "alertas": [asdict(a) for a in alertas],
         "recomendaciones": recomendaciones(alertas),
+        "benchmark": comparar(indicadores, ef.supuestos.get("benchmark")),
+        "comparables": codigos_comparables(indicadores),
     }
 
 
@@ -147,7 +156,7 @@ def obtener_caso(caso_id: str):
 
 @app.get("/api/casos/{caso_id}/analisis", tags=["analisis"])
 def analizar_caso(caso_id: str):
-    """Analisis completo de un caso guardado."""
+    """Análisis completo de un caso guardado."""
     ruta = CASOS / f"{caso_id}.json"
     if not ruta.exists() or ruta.parent != CASOS:
         raise HTTPException(404, f"No existe el caso '{caso_id}'.")
@@ -166,9 +175,9 @@ def analizar(entrada: EntradaEstados):
 
 @app.post("/api/narrar", tags=["ia"])
 def narrar(entrada: EntradaNarrativa):
-    """Redacta el diagnostico en prosa.
+    """Redacta el diagnóstico en prosa.
 
-    La IA solo recibe numeros ya calculados por el motor; no hace aritmetica.
+    La IA solo recibe números ya calculados por el motor; no hace aritmetica.
     """
     try:
         ef = EstadosFinancieros(entrada.estados.model_dump())
@@ -227,7 +236,7 @@ class EntradaTabla(BaseModel):
 
 
 @app.post("/api/importar", tags=["importacion"])
-async def importar_archivo(archivo: UploadFile = File(...)):
+async def importar_archivo(archivo: UploadFile = File(...), paginas: str = Form("")):
     """Lee un Excel, CSV o PDF y devuelve la tabla con un mapeo propuesto.
 
     No calcula ni valida nada financiero: solo lee. El usuario confirma el
@@ -235,9 +244,9 @@ async def importar_archivo(archivo: UploadFile = File(...)):
     """
     contenido = await archivo.read()
     if len(contenido) > MAX_ARCHIVO:
-        raise HTTPException(413, f"El archivo pesa mas de {MAX_ARCHIVO // (1024 * 1024)} MB.")
+        raise HTTPException(413, f"El archivo pesa más de {MAX_ARCHIVO // (1024 * 1024)} MB.")
     try:
-        tabla = importar(archivo.filename or "", contenido)
+        tabla = importar(archivo.filename or "", contenido, paginas)
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
     except Exception as exc:  # archivo corrupto, protegido, formato raro
@@ -257,8 +266,8 @@ def cuentas_disponibles():
 def proponer_mapeo(entrada: EntradaEtiquetas):
     """Le pide al modelo una propuesta para las filas que el diccionario no reconocio.
 
-    Es clasificacion de texto, no calculo: el modelo mira COMO SE LLAMA la fila,
-    nunca cuanto vale. La propuesta llega marcada y no se aplica sola.
+    Es clasificación de texto, no cálculo: el modelo mira COMO SE LLAMA la fila,
+    nunca cuánto vale. La propuesta llega marcada y no se aplica sola.
     """
     try:
         return narrativa.proponer_cuentas(entrada.etiquetas, CUENTAS)
@@ -278,6 +287,112 @@ def armar_desde_tabla(entrada: EntradaTabla):
                              moneda=entrada.moneda, unidad=entrada.unidad)
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
+
+
+# --------------------------------------------------------------- benchmark
+
+
+class EntradaBenchmark(BaseModel):
+    """Estados financieros mas las referencias del sector a comparar."""
+
+    estados: "EntradaEstados"
+    referencias: dict[str, float] = Field(default_factory=dict)
+
+
+@app.post("/api/benchmark", tags=["analisis"])
+def benchmark(entrada: EntradaBenchmark):
+    """Compara los indicadores contra las referencias del sector dadas.
+
+    Las referencias son un dato externo: no se deducen de los estados
+    financieros. Un indicador sin referencia se reporta como no comparado,
+    nunca se rellena con un supuesto.
+    """
+    try:
+        ef = EstadosFinancieros(entrada.estados.model_dump())
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return comparar(calcular_todos(ef), entrada.referencias)
+
+
+# ------------------------------------------------- evaluacion de proyectos
+
+
+class EntradaProyecto(BaseModel):
+    """Un proyecto de inversión a evaluar.
+
+    La inversión viaja aparte de los flujos y como número positivo: el motor
+    le pone el signo. Confundir ese signo es el error más comun del tema.
+    """
+
+    nombre: str = "Proyecto sin nombre"
+    inversion: float = Field(gt=0, description="Inversión inicial, positiva")
+    flujos: list[float] = Field(min_length=1, max_length=60)
+    tasa_descuento: float = Field(gt=-1, le=10, description="WACC en tanto por uno")
+    plazo_exigido: float | None = Field(default=None, gt=0)
+    moneda: str = "COP"
+    unidad: str = "millones"
+
+
+class EntradaWacc(BaseModel):
+    patrimonio: float | None = None
+    deuda: float | None = None
+    costo_patrimonio: float | None = None
+    costo_deuda: float | None = None
+    tasa_impuestos: float | None = None
+
+
+class EntradaFlujoMensual(BaseModel):
+    saldo_inicial: float = 0.0
+    meses: list[dict] = Field(default_factory=list, max_length=36)
+
+
+@app.post("/api/proyecto/evaluar", tags=["proyectos"])
+def evaluar(entrada: EntradaProyecto):
+    """Evalua un proyecto: VPN, TIR, TIRM, payback, IR, escenarios y veredicto.
+
+    Todo determinista. La IA no interviene: recibe estos números ya resueltos
+    si después se le pide redactar el concepto.
+    """
+    proyecto = Proyecto(**entrada.model_dump())
+    return evaluar_proyecto(proyecto)
+
+
+@app.post("/api/proyecto/wacc", tags=["proyectos"])
+def wacc(entrada: EntradaWacc):
+    """Costo promedio ponderado de capital, la tasa con la que se descuenta.
+
+    Si falta un insumo lo reporta en vez de suponerlo: un WACC inventado
+    contamina todos los indicadores del proyecto.
+    """
+    return calcular_wacc(**entrada.model_dump())
+
+
+@app.post("/api/proyecto/flujo-mensual", tags=["proyectos"])
+def flujo_mensual(entrada: EntradaFlujoMensual):
+    """Flujo de caja a 12 meses con deteccion de faltantes de liquidez.
+
+    Un proyecto puede tener VPN positivo y aún así quebrar la empresa si la
+    caja se agota a mitad de año. Esto es lo que detecta ese descalce.
+    """
+    try:
+        return flujo_caja_mensual(entrada.saldo_inicial, entrada.meses)
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(422, f"Los meses no tienen el formato esperado: {exc}") from exc
+
+
+@app.post("/api/proyecto/narrar", tags=["ia"])
+def narrar_proyecto(entrada: EntradaProyecto):
+    """Redacta el concepto de viabilidad del proyecto en prosa.
+
+    Igual que el resto: el motor decide si es viable, el modelo solo lo
+    explica. Si el modelo no esta disponible, la evaluación numerica sigue
+    sirviendo y se devuelve igual.
+    """
+    evaluacion = evaluar_proyecto(Proyecto(**entrada.model_dump()))
+    try:
+        return narrativa.narrar_proyecto(evaluacion)
+    except RuntimeError as exc:
+        raise HTTPException(502, str(exc)) from exc
 
 
 # ------------------------------------------------------------------ interfaz

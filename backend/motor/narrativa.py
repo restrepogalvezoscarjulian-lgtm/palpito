@@ -1,8 +1,8 @@
 """Capa de narrativa: la IA redacta, no calcula.
 
 Principio de diseno de Palpito: el modelo de lenguaje NUNCA hace aritmetica ni
-decide que esta mal. Recibe un contexto con los numeros ya calculados y
-verificados por el motor, y su unico trabajo es traducirlos a lenguaje que un
+decide que esta mal. Recibe un contexto con los números ya calculados y
+verificados por el motor, y su único trabajo es traducirlos a lenguaje que un
 empresario entienda.
 
 Consecuencias practicas:
@@ -46,7 +46,7 @@ def estado() -> dict:
         "disponible": disponible(),
         "modelo": modelo() if disponible() else None,
         "motivo": "" if disponible() else (
-            "No hay clave de OpenRouter configurada. El analisis numerico funciona "
+            "No hay clave de OpenRouter configurada. El análisis numerico funciona "
             "completo; solo falta la redaccion en prosa."
         ),
     }
@@ -58,12 +58,12 @@ INSTRUCCIONES = """Eres un analista financiero senior que le explica a un empres
 colombiano de pyme, sin formacion contable, que esta pasando en su empresa.
 
 REGLAS ABSOLUTAS:
-1. NO calcules nada. Todos los numeros que necesitas ya estan en el CONTEXTO.
+1. NO calcules nada. Todos los números que necesitas ya están en el CONTEXTO.
 2. NO menciones ninguna cifra que no aparezca literalmente en el CONTEXTO.
 3. Si un dato dice "no disponible", di que no se puede saber y por que. Nunca lo estimes.
 4. Si el CONTEXTO reporta problemas de calidad de los datos, adviertelo primero:
-   un diagnostico sobre datos inconsistentes puede estar equivocado.
-5. Escribe en espanol de Colombia, claro y directo. Usa analogias del dia a dia
+   un diagnóstico sobre datos inconsistentes puede estar equivocado.
+5. Escribe en español de Colombia, claro y directo. Usa analogias del día a día
    de un comerciante. Nada de jerga sin explicar.
 6. Se honesto: si la empresa esta mal, dilo sin rodeos. No adornes.
 
@@ -72,7 +72,7 @@ FORMATO DE LA RESPUESTA (usa markdown, sin titulo principal):
 **Por qué** - la cadena causal: que empezo el problema y como se propago.
 **Lo más urgente** - las tres cosas que hay que atender, en orden.
 
-Maximo 400 palabras. Cada afirmacion debe apoyarse en un numero del CONTEXTO."""
+Máximo 400 palabras. Cada afirmacion debe apoyarse en un número del CONTEXTO."""
 
 
 def _fmt(v, unidad="", dec=2):
@@ -81,16 +81,16 @@ def _fmt(v, unidad="", dec=2):
     if unidad == "%":
         return f"{v:,.2f}%"
     if unidad == "dias":
-        return f"{v:,.1f} dias"
+        return f"{v:,.1f} días"
     if unidad == "monto":
         return f"{v:,.0f}"
     return f"{v:,.{dec}f}"
 
 
 def construir_contexto(analisis: dict) -> str:
-    """Serializa el analisis a texto plano para el modelo.
+    """Serializa el análisis a texto plano para el modelo.
 
-    Es deliberadamente exhaustivo: entre mas completo el contexto, menos
+    Es deliberadamente exhaustivo: entre más completo el contexto, menos
     tentacion tiene el modelo de rellenar huecos por su cuenta.
     """
     L: list[str] = []
@@ -110,7 +110,7 @@ def construir_contexto(analisis: dict) -> str:
     if s.get("disponible"):
         L.append(f"\n== PUNTAJE DE SALUD FINANCIERA: {s['puntaje']:.1f} de 100 "
                  f"({s['banda']['nombre']}) ==")
-        L.append(f"Metodologia: {s['metodologia']['formula']}")
+        L.append(f"Metodología: {s['metodologia']['formula']}")
         for d in s["dimensiones"]:
             if d["evaluable"]:
                 L.append(f"{d['nombre']} (peso {d['peso']:.0f}%): "
@@ -181,7 +181,7 @@ def _llamar(mensajes: list[dict], max_tokens: int = 1200) -> str:
         headers={
             "Authorization": f"Bearer {clave}",
             "Content-Type": "application/json",
-            "X-Title": "Palpito - Diagnostico Financiero",
+            "X-Title": "Palpito - Diagnóstico Financiero",
         },
         json={
             "model": modelo(),
@@ -202,27 +202,27 @@ def _llamar(mensajes: list[dict], max_tokens: int = 1200) -> str:
 
 
 def narrar(analisis: dict) -> dict:
-    """Redacta el diagnostico en prosa a partir del analisis ya calculado."""
+    """Redacta el diagnóstico en prosa a partir del análisis ya calculado."""
     if not disponible():
         return {"disponible": False, "texto": "", **estado()}
     contexto = construir_contexto(analisis)
     texto = _llamar([
         {"role": "system", "content": INSTRUCCIONES},
-        {"role": "user", "content": f"CONTEXTO:\n{contexto}\n\nRedacta el diagnostico."},
+        {"role": "user", "content": f"CONTEXTO:\n{contexto}\n\nRedacta el diagnóstico."},
     ])
     return {"disponible": True, "texto": texto, "modelo": modelo(), "motivo": ""}
 
 
 INSTRUCCIONES_PREGUNTA = """Eres un analista financiero que responde preguntas de un \
-empresario sobre SU PROPIA empresa, usando unicamente el CONTEXTO entregado.
+empresario sobre SU PROPIA empresa, usando únicamente el CONTEXTO entregado.
 
 REGLAS ABSOLUTAS:
-1. NO calcules. Usa solo los numeros del CONTEXTO.
+1. NO calcules. Usa solo los números del CONTEXTO.
 2. Si la pregunta no se puede responder con el CONTEXTO, dilo claramente y explica
    que dato haria falta. No inventes.
-3. Termina SIEMPRE con una linea que empiece con "Fuentes:" listando las cifras
+3. Termina SIEMPRE con una línea que empiece con "Fuentes:" listando las cifras
    exactas del CONTEXTO en las que te apoyaste, separadas por " · ".
-4. Espanol de Colombia, directo, maximo 200 palabras antes de las fuentes."""
+4. Español de Colombia, directo, máximo 200 palabras antes de las fuentes."""
 
 
 def responder(analisis: dict, pregunta: str) -> dict:
@@ -233,7 +233,7 @@ def responder(analisis: dict, pregunta: str) -> dict:
     if not pregunta:
         raise ValueError("La pregunta esta vacia.")
     if len(pregunta) > 500:
-        raise ValueError("La pregunta es demasiado larga (maximo 500 caracteres).")
+        raise ValueError("La pregunta es demasiado larga (máximo 500 caracteres).")
 
     contexto = construir_contexto(analisis)
     texto = _llamar([
@@ -254,7 +254,7 @@ REGLAS ESTRICTAS:
    Dejarla sin asignar es la respuesta correcta y esperada muchas veces.
 3. Nunca opines sobre los valores ni los interpretes: solo clasificas nombres.
 4. Un codigo no puede usarse dos veces.
-5. Responde UNICAMENTE un objeto JSON, sin texto alrededor y sin ```:
+5. Responde ÚNICAMENTE un objeto JSON, sin texto alrededor y sin ```:
    {"asignaciones": [{"etiqueta": "...", "cuenta": "codigo o null", "confianza": "alta|media|baja"}]}
 
 Confianza alta: la etiqueta es un sinonimo claro. Media: encaja pero con
@@ -264,8 +264,8 @@ ambiguedad. Baja: es una conjetura. Ante la duda, baja o null."""
 def proponer_cuentas(etiquetas: list[str], disponibles: list[str]) -> dict:
     """Le pide al modelo que proponga a que cuenta corresponde cada etiqueta.
 
-    Es lo unico que el modelo hace en la importacion, y es clasificacion de
-    texto, no calculo: mira COMO SE LLAMA una fila, nunca cuanto vale. La
+    Es lo único que el modelo hace en la importación, y es clasificación de
+    texto, no cálculo: mira COMO SE LLAMA una fila, nunca cuánto vale. La
     propuesta llega marcada como tal y no se aplica sola: el usuario la
     confirma o la corrige en pantalla antes de que se calcule nada.
     """
@@ -296,8 +296,8 @@ def _leer_json_asignaciones(crudo: str, etiquetas: list[str],
     """Lee la respuesta del modelo y descarta todo lo que no cuadre.
 
     El modelo puede devolver un codigo que no existe, repetir uno o inventarse
-    una etiqueta que nadie le paso. Nada de eso puede llegar a la pantalla, asi
-    que se filtra aqui: lo que no calza se ignora en silencio y esa fila
+    una etiqueta que nadie le paso. Nada de eso puede llegar a la pantalla, así
+    que se filtra aquí: lo que no calza se ignora en silencio y esa fila
     simplemente queda sin propuesta.
     """
     texto = (crudo or "").strip()
@@ -326,3 +326,113 @@ def _leer_json_asignaciones(crudo: str, etiquetas: list[str],
         usadas.add(cuenta)
         validas.append({"etiqueta": etiqueta, "cuenta": cuenta, "confianza": confianza})
     return validas
+
+
+# ------------------------------------------------- concepto de viabilidad
+
+INSTRUCCIONES_PROYECTO = """Eres un analista financiero que le presenta a una junta \
+directiva el concepto de viabilidad de un proyecto de inversión.
+
+REGLAS ABSOLUTAS:
+1. NO calcules nada. Todos los números ya están en el CONTEXTO.
+2. El veredicto ya viene decidido en el CONTEXTO. NO lo contradigas ni lo suavices:
+   tu trabajo es explicarlo, no volver a juzgar el proyecto.
+3. NO menciones ninguna cifra que no aparezca literalmente en el CONTEXTO.
+4. Si hay reparos, nombralos explicitamente. Una junta que aprueba sin conocer
+   los reparos fue mal asesorada.
+5. Español de Colombia, directo. Explica que significa cada indicador en plata
+   real, no en jerga.
+
+FORMATO (markdown, sin titulo principal):
+**El concepto** - viable o no, y por que, en dos o tres frases.
+**Lo que dicen los números** - VPN, TIR, payback e índice de rentabilidad leidos
+en lenguaje de negocio.
+**El riesgo** - cuánto aguanta el proyecto antes de dejar de crear valor.
+**La recomendacion a la junta** - que debería decidirse, incluidas las condiciones
+que habría que flexibilizar.
+
+Máximo 350 palabras."""
+
+
+def contexto_proyecto(evaluacion: dict) -> str:
+    """Serializa la evaluación de un proyecto a texto plano para el modelo.
+
+    Igual que construir_contexto: existe por transparencia, para poder auditar
+    que el modelo no recibe nada que el motor no haya calculado antes.
+    """
+    p = evaluacion["proyecto"]
+    lineas = [
+        f"PROYECTO: {p['nombre']}",
+        f"Inversión inicial: {_fmt(p['inversion'], 'monto')} {p['unidad']} de {p['moneda']}",
+        f"Horizonte: {p['horizonte']} periodos",
+        f"Tasa de descuento exigida (WACC): {_fmt(p['tasa_descuento'] * 100, '%')}",
+    ]
+    if p.get("plazo_exigido") is not None:
+        lineas.append(f"Plazo máximo exigido para recuperar: {p['plazo_exigido']:g} años")
+    lineas.append(
+        "Flujos de caja proyectados: "
+        + " · ".join(f"año {i + 1}: {_fmt(f, 'monto')}" for i, f in enumerate(p["flujos"]))
+    )
+
+    lineas.append("\nINDICADORES DEL PROYECTO:")
+    for m in evaluacion["metricas"]:
+        if m["valor"] is None:
+            lineas.append(f"- {m['nombre']}: no disponible")
+            continue
+        if m["unidad"] == "porcentaje":
+            valor = _fmt(m["valor"] * 100, "%")
+        elif m["unidad"] == "anios":
+            valor = f"{m['valor']:,.2f} años"
+        elif m["unidad"] == "veces":
+            valor = _fmt(m["valor"])
+        else:
+            valor = _fmt(m["valor"], "monto")
+        lineas.append(
+            f"- {m['nombre']}: {valor} | criterio: {m['criterio']} | "
+            f"resultado: {m['veredicto']} | {m['lectura']}"
+        )
+
+    quiebre = evaluacion["punto_de_quiebre"]
+    lineas.append(f"\nRIESGO: {quiebre['lectura']}")
+
+    lineas.append("ESCENARIOS:")
+    for e in evaluacion["escenarios"]:
+        lineas.append(
+            f"- {e['nombre']} (flujos {e['variacion_flujos'] * 100:+.0f}%): "
+            f"VPN {_fmt(e['vpn'], 'monto')}, "
+            f"{'crea valor' if e['crea_valor'] else 'destruye valor'}"
+        )
+    lineas.append(
+        f"Escenarios que crean valor: {evaluacion['escenarios_que_crean_valor']} de "
+        f"{len(evaluacion['escenarios'])}"
+    )
+
+    lineas.append(
+        f"\nVEREDICTO DEL MOTOR: {evaluacion['veredicto'].upper()} "
+        f"(semaforo {evaluacion['semaforo']}), "
+        f"{evaluacion['criterios_favorables']} de {evaluacion['criterios_evaluados']} "
+        f"criterios decisivos cumplidos"
+    )
+    if evaluacion["reparos"]:
+        lineas.append("REPAROS: " + " · ".join(evaluacion["reparos"]))
+    lineas.append(f"RECOMENDACION DEL MOTOR: {evaluacion['recomendacion']}")
+
+    return "\n".join(lineas)
+
+
+def narrar_proyecto(evaluacion: dict) -> dict:
+    """Redacta el concepto de viabilidad sobre una evaluación ya calculada."""
+    if not disponible():
+        return {"disponible": False, "texto": "", "evaluacion": evaluacion, **estado()}
+    contexto = contexto_proyecto(evaluacion)
+    texto = _llamar([
+        {"role": "system", "content": INSTRUCCIONES_PROYECTO},
+        {"role": "user", "content": f"CONTEXTO:\n{contexto}\n\nRedacta el concepto."},
+    ])
+    return {
+        "disponible": True,
+        "texto": texto,
+        "modelo": modelo(),
+        "motivo": "",
+        "evaluacion": evaluacion,
+    }
