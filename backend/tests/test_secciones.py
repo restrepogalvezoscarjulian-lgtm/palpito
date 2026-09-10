@@ -113,6 +113,95 @@ def test_estados_juntos_no_se_marcan_como_dispersos():
     assert analizar_paginas(paginas).get("disperso") is False
 
 
+# ------------------------------------- un estado repartido en varias hojas
+
+# El caso Grupo Argos: el balance ocupa tres paginas, cada una repitiendo el
+# titulo, y ninguna trae los totales completos.
+ARGOS_ACTIVOS = """Grupo Argos S.A.
+Estado de Situación Financiera Consolidado
+ACTIVOS
+Activo corriente
+Efectivo y equivalentes de efectivo 5 1.897.406 2.084.372
+Total activos 48.012.775 46.220.109
+"""
+
+ARGOS_PASIVOS = """Grupo Argos S.A.
+Estado de Situación Financiera Consolidado
+PASIVOS
+Pasivo corriente
+Obligaciones financieras 2.945.325 3.118.004
+Total pasivos 21.398.531 22.110.442
+"""
+
+ARGOS_PATRIMONIO = """Grupo Argos S.A.
+Estado de Situación Financiera Consolidado
+PATRIMONIO
+Total patrimonio 26.614.244 24.109.667
+Total pasivos y patrimonio 48.012.775 46.220.109
+"""
+
+# Una nota del fondo del documento que los menciona todos de una vez. Puntua
+# mas que cualquiera de las tres hojas de arriba por separado.
+NOTA_FUERTE = """Nota 22. Información por segmentos
+Estado de Situación Financiera por segmento operativo
+Total activos 48.012.775 Total pasivos 21.398.531
+Total activo corriente 9.114.220 Total pasivo corriente 7.882.104
+"""
+
+
+def test_un_balance_de_tres_hojas_le_gana_a_una_nota_concentrada():
+    """Argos: puntuando hojas sueltas, la nota de la 82 se llevaba el balance.
+
+    Ninguna de las tres hojas del balance verdadero alcanza sola el puntaje de
+    la nota. Sumadas como un bloque, si.
+    """
+    paginas = (
+        [RELLENO] * 15
+        + [ARGOS_ACTIVOS, ARGOS_PASIVOS, ARGOS_PATRIMONIO, RESULTADOS]
+        + [RELLENO] * 60
+        + [NOTA_FUERTE]
+        + [RELLENO] * 5
+    )
+    r = analizar_paginas(paginas)
+    assert r["encontrado"] is True
+    assert r["paginas"] == "16-19", "se perdio el activo entero"
+    assert r.get("disperso") is False
+
+
+def test_el_bloque_elegido_queda_por_escrito():
+    """Hay que poder discutir por que el bloque le gano a la nota."""
+    paginas = (
+        [RELLENO] * 15
+        + [ARGOS_ACTIVOS, ARGOS_PASIVOS, ARGOS_PATRIMONIO, RESULTADOS]
+        + [RELLENO] * 60
+        + [NOTA_FUERTE]
+    )
+    bloques = analizar_paginas(paginas)["bloques"]
+    balance = next(b for b in bloques if b["clase"] == "balance")
+    assert balance["paginas"] == [16, 17, 18]
+    nota_sola = analizar_paginas([NOTA_FUERTE])["detalle"][0]["puntaje"]
+    assert balance["puntaje"] > nota_sola
+
+
+def test_se_elige_la_pareja_vecina_no_el_mejor_de_cada_clase():
+    """Los estados van juntos: un balance sin resultados al lado es una nota."""
+    paginas = (
+        [RELLENO] * 4
+        + [BALANCE, RESULTADOS]
+        + [RELLENO] * 40
+        + [NOTA_FUERTE, NOTA_FUERTE]
+        + [RELLENO] * 5
+    )
+    r = analizar_paginas(paginas)
+    assert r["paginas"].startswith("5"), r["paginas"]
+
+
+def test_la_lectura_menciona_las_tres_hojas_del_balance():
+    paginas = [RELLENO] * 15 + [
+        ARGOS_ACTIVOS, ARGOS_PASIVOS, ARGOS_PATRIMONIO, RESULTADOS]
+    assert "páginas 16 a 18" in analizar_paginas(paginas)["lectura"]
+
+
 # ----------------------------------------------------------- auditabilidad
 
 

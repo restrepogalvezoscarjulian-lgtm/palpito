@@ -357,3 +357,33 @@ def test_del_pdf_al_indicador():
     datos = armar_estados(tabla.como_dict(), empresa="Desde PDF S.A.")
     ind = calcular_todos(EstadosFinancieros(datos))
     assert ind["razon_corriente"].valores[1] == pytest.approx(5680 / 2800, abs=1e-4)
+
+
+# ------------------------------------------- tildes: donde si y donde no
+
+
+def test_las_claves_del_diccionario_van_sin_tildes():
+    """Trampa que ya costo horas: SINONIMOS se compara contra etiquetas ya
+    normalizadas, y el normalizador quita las tildes. Una clave con tilde deja
+    de reconocer su cuenta, sin que nada falle.
+    """
+    from motor.importacion import SINONIMOS
+
+    con_tilde = [f for frases in SINONIMOS.values() for f in frases if not f.isascii()]
+    assert not con_tilde, f"estas claves nunca van a empatar: {con_tilde}"
+
+
+def test_los_avisos_que_lee_el_usuario_si_llevan_tildes():
+    """Lo contrario: esto se proyecta en pantalla. "La operacion no genero
+    caja" se lee como descuido.
+    """
+    from motor.importacion import armar_estados
+
+    datos = armar_estados({"periodos": ["2025"], "filas": [
+        {"cuenta": "costo_ventas", "valores": [-400]},
+        {"cuenta": "deuda_financiera_lp", "valores": [100]},
+        {"cuenta": "deuda_financiera_lp", "valores": [200]},
+    ]})
+    avisos = datos["supuestos"]["ajustes_importacion"]
+    assert any("venía" in a and "volteó" in a and "paréntesis" in a for a in avisos), avisos
+    assert any("armó" in a for a in avisos), avisos

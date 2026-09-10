@@ -195,3 +195,39 @@ def test_catalogo_de_cuentas_para_la_interfaz(cliente):
     codigos = {c["codigo"] for c in cuentas}
     assert {"efectivo", "ventas", "patrimonio"} <= codigos
     assert all(c["grupo"] in ("balance", "resultados") for c in cuentas)
+
+
+# ------------------------------- lo que el motor ajusto tiene que verse
+
+
+def test_los_ajustes_de_importacion_llegan_al_analisis(cliente):
+    """El motor voltea signos y suma renglones de deuda. Antes lo anotaba en
+    los supuestos y nadie leia ese campo: ni la interfaz, ni la validacion, ni
+    el diagnostico. Decia "nunca en silencio" y lo hacia en silencio.
+    """
+    from motor.importacion import armar_estados
+
+    estados = armar_estados({
+        "periodos": ["2025"],
+        "filas": [
+            {"cuenta": "ventas", "valores": [1000]},
+            {"cuenta": "costo_ventas", "valores": [-400]},
+            {"cuenta": "deuda_financiera_lp", "valores": [100]},
+            {"cuenta": "deuda_financiera_lp", "valores": [200]},
+        ],
+    }, empresa="Prueba")
+
+    r = cliente.post("/api/analizar", json=estados)
+    assert r.status_code == 200
+    ajustes = r.json()["validacion"]["ajustes_importacion"]
+    assert any("costo_ventas" in a for a in ajustes), ajustes
+    assert any("deuda_financiera_lp" in a and "2 renglones" in a for a in ajustes), ajustes
+
+
+def test_sin_ajustes_el_campo_viene_vacio_no_ausente(cliente, datos):
+    """La interfaz decide si dibuja el bloque mirando la lista. Si el campo
+    faltara tendria que adivinar.
+    """
+    r = cliente.post("/api/analizar", json=datos)
+    assert r.status_code == 200
+    assert r.json()["validacion"]["ajustes_importacion"] == []

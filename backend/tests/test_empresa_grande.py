@@ -239,3 +239,257 @@ def test_el_signo_de_moneda_no_corta_la_fila(linea, esperado):
     """Asi vienen los estados publicados en Colombia."""
     from motor.importacion import _partir_linea
     assert _partir_linea(linea) == esperado
+
+
+# ------------------------- cuentas que se llaman casi igual (Grupo Argos 2025)
+
+
+@pytest.mark.parametrize("etiqueta", [
+    "Activos por impuestos",
+    "Activos por impuestos corrientes",
+    "Pasivos por impuestos",
+    "Impuestos por pagar",
+    "Impuesto diferido",
+])
+def test_un_saldo_del_balance_no_puede_caer_en_resultados(etiqueta):
+    """El caso Argos: "Activos por impuestos" (257.927) entraba como el gasto
+    de renta del periodo, que eran 589.725. La tasa efectiva salio 19,49%
+    cuando el propio informe declara 44,57%. Nada fallo: la cifra era otra.
+    """
+    from motor.importacion import CUENTAS_RESULTADOS, buscar_cuenta
+    cuenta, _ = buscar_cuenta(etiqueta)
+    assert cuenta not in CUENTAS_RESULTADOS, f"{etiqueta} se colo como {cuenta}"
+
+
+@pytest.mark.parametrize("etiqueta", [
+    "Impuesto sobre las ganancias",
+    "Impuesto a las ganancias",
+    "Impuesto de renta",
+    "Gasto por impuestos",
+])
+def test_el_gasto_de_renta_si_se_reconoce_por_su_nombre_publicado(etiqueta):
+    from motor.importacion import buscar_cuenta
+    assert buscar_cuenta(etiqueta)[0] == "impuestos"
+
+
+# ------------------------------ deuda financiera contra pasivo no corriente
+
+
+def test_el_total_de_pasivos_no_corrientes_no_es_deuda_financiera():
+    """En Argos ese total eran 12.492.908 y la deuda real 7.503.420: 66% de
+    sobrestimacion. El total incluye impuesto diferido, provisiones y cuentas
+    por pagar de largo plazo, que no cuestan intereses.
+    """
+    from motor.importacion import buscar_cuenta
+    for etiqueta in ("Total pasivos no corrientes", "Pasivo no corriente",
+                     "TOTAL PASIVOS NO CORRIENTES"):
+        assert buscar_cuenta(etiqueta)[0] != "deuda_financiera_lp", etiqueta
+
+
+def test_la_deuda_se_reparte_segun_de_que_lado_del_corte_cayo():
+    """"Obligaciones financieras" aparece dos veces en la misma pagina, con el
+    mismo nombre: solo la posicion dice cual es cual.
+    """
+    from motor.importacion import Fila, Tabla, mapear
+
+    tabla = Tabla(periodos=["2025", "2024"], filas=[
+        Fila("Obligaciones financieras", [1777080, 2171508]),
+        Fila("Bonos e instrumentos financieros compuestos", [405808, 731549]),
+        Fila("TOTAL PASIVOS CORRIENTES PASIVOS NO CORRIENTES", [5580106, 8266843]),
+        Fila("Obligaciones financieras", [2945325, 3356071]),
+        Fila("Impuesto diferido", [2720397, 1804928]),
+        Fila("Bonos e instrumentos financieros compuestos", [4558095, 5144207]),
+        Fila("TOTAL PASIVOS NO CORRIENTES", [12492908, 11030737]),
+    ])
+    cuentas = [f.cuenta for f in mapear(tabla).filas]
+    assert cuentas == [
+        "deuda_financiera_cp", "deuda_financiera_cp", "pasivo_corriente",
+        "deuda_financiera_lp", None, "deuda_financiera_lp", None,
+    ], cuentas
+
+
+def test_la_deuda_repartida_en_varios_renglones_se_suma_y_se_anota():
+    """Obligaciones financieras + bonos. Sumar en silencio seria peor que no
+    sumar: el ajuste queda anotado en los supuestos.
+    """
+    from motor.importacion import armar_estados
+
+    cruda = {
+        "periodos": ["2025", "2024"],
+        "filas": [
+            {"cuenta": "deuda_financiera_lp", "valores": [2945325, 3356071]},
+            {"cuenta": "deuda_financiera_lp", "valores": [4558095, 5144207]},
+        ],
+    }
+    datos = armar_estados(cruda, empresa="Grupo Argos")
+    assert datos["balance"]["deuda_financiera_lp"] == [7503420, 8500278]
+    ajustes = " ".join(datos["supuestos"]["ajustes_importacion"])
+    assert "deuda_financiera_lp" in ajustes and "2 renglones" in ajustes
+
+
+# ---------------------------------- que la deuda no se coma lo que no es deuda
+
+
+@pytest.mark.parametrize("etiqueta", [
+    "Inversiones en bonos",
+    "Activos financieros",
+    "Instrumentos financieros derivados",
+    "Cuentas por cobrar por bonos",
+])
+def test_un_bono_que_se_tiene_no_se_cuenta_como_deuda(etiqueta):
+    """Un bono se puede deber o se puede tener. Confundirlos le invierte el
+    signo al endeudamiento de la empresa.
+    """
+    from motor.importacion import buscar_cuenta
+    cuenta, _ = buscar_cuenta(etiqueta)
+    assert cuenta not in ("deuda_financiera_cp", "deuda_financiera_lp"), etiqueta
+
+
+def test_un_total_mayor_devuelve_la_marca_a_corriente():
+    """Si un balance no declara el subtotal de activos no corrientes, la marca
+    se quedaria puesta y los pasivos corrientes de mas abajo entrarian como
+    deuda de largo plazo.
+    """
+    from motor.importacion import Fila, Tabla, mapear
+
+    tabla = Tabla(periodos=["2025"], filas=[
+        Fila("Total activos corrientes", [100]),
+        Fila("Propiedades planta y equipo", [200]),
+        Fila("TOTAL ACTIVOS", [300]),
+        Fila("Obligaciones financieras", [50]),
+    ])
+    assert mapear(tabla).filas[-1].cuenta == "deuda_financiera_cp"
+
+
+def test_tres_renglones_de_deuda_producen_un_solo_aviso():
+    from motor.importacion import armar_estados
+
+    datos = armar_estados({"periodos": ["2025"], "filas": [
+        {"cuenta": "deuda_financiera_lp", "valores": [100]},
+        {"cuenta": "deuda_financiera_lp", "valores": [200]},
+        {"cuenta": "deuda_financiera_lp", "valores": [300]},
+    ]})
+    assert datos["balance"]["deuda_financiera_lp"] == [600]
+    avisos = [a for a in datos["supuestos"]["ajustes_importacion"]
+              if "deuda_financiera_lp" in a]
+    assert len(avisos) == 1, avisos
+    assert "3 renglones" in avisos[0]
+
+
+def test_la_pagina_de_mas_metia_las_operaciones_discontinuadas():
+    """El detector se queda en 16-19 a proposito. La 20 trae el resultado
+    integral, y con ella la utilidad neta pasaba de 733.427 (operaciones
+    continuadas) a 4.346.462, que incluye la venta de Summit Materials y la
+    escision de Grupo Sura: plata que no se repite y no sirve para proyectar.
+    """
+    from motor.secciones import analizar_paginas
+
+    balance = ("Estado de Situación Financiera\nTotal activos 100\n"
+               "Total pasivos 40\nTotal patrimonio 60\n")
+    resultados = ("Estado de Resultados\nUtilidad bruta 30\n"
+                  "Utilidad operacional 20\nUtilidad neta 10\ncosto de ventas 5\n")
+    integral = "Utilidad neta del periodo 40\nGanancia neta por conversion 30\n"
+
+    relleno = "Texto sin marcadores financieros.\n"
+    r = analizar_paginas([relleno] * 15 + [balance, resultados, integral])
+    assert r["paginas"] == "16-17", "se colo la hoja del resultado integral"
+
+
+# ------------------- la utilidad neta que sirve para proyectar (Grupo Argos)
+
+
+@pytest.mark.parametrize("etiqueta", [
+    "UTILIDAD NETA OPERACIONES DISCONTINUADAS",
+    "Utilidad antes de impuestos operaciones discontinuadas",
+    "OTRO RESULTADO INTEGRAL, NETO DE IMPUESTOS",
+    "RESULTADO INTEGRAL TOTAL",
+])
+def test_lo_discontinuado_y_el_integral_no_son_ninguna_cuenta(etiqueta):
+    """Plata de vender un negocio, y revaluaciones que no pasaron por el
+    estado de resultados. Ninguna de las dos cosas es una de las 23 cuentas.
+    """
+    from motor.importacion import buscar_cuenta
+    assert buscar_cuenta(etiqueta)[0] is None, etiqueta
+
+
+@pytest.mark.parametrize("primero", [True, False])
+def test_la_continuada_le_gana_al_total_sin_importar_el_orden(primero):
+    """Hasta hoy la continuada ganaba solo por aparecer antes en la pagina, y
+    el renglon pelado "UTILIDAD NETA" la desplazaba por coincidencia exacta.
+    """
+    from motor.importacion import Fila, Tabla, mapear
+
+    continuada = Fila("UTILIDAD NETA OPERACIONES CONTINUADAS", [733427, 160652])
+    total = Fila("UTILIDAD NETA", [4346462, 7646799])
+    filas = [continuada, total] if primero else [total, continuada]
+
+    mapear(Tabla(periodos=["2025", "2024"], filas=filas))
+    assert continuada.cuenta == "utilidad_neta"
+    assert total.cuenta is None
+
+
+def test_leer_una_hoja_de_mas_ya_no_cambia_la_utilidad_neta():
+    """La prueba de fondo. El estado de resultados de Argos va en la 19 y el
+    resultado integral en la 20. Antes, incluir la 20 subia la utilidad neta
+    de 733.427 a 4.346.462 sin que nada avisara: se colaban la venta de Summit
+    Materials y la escision de Grupo Sura.
+    """
+    from motor.importacion import Fila, Tabla, armar_estados, mapear
+
+    pagina19 = [
+        Fila("UTILIDAD BRUTA", [3438340, 3120150]),
+        Fila("UTILIDAD ANTES DE IMPUESTOS", [1323152, 457735]),
+        Fila("Impuesto sobre las ganancias", [-589725, -297083]),
+        Fila("UTILIDAD NETA OPERACIONES CONTINUADAS", [733427, 160652]),
+        Fila("UTILIDAD NETA OPERACIONES DISCONTINUADAS", [3613035, 7486147]),
+    ]
+    pagina20 = [
+        Fila("UTILIDAD NETA", [4346462, 7646799]),
+        Fila("OTRO RESULTADO INTEGRAL, NETO DE IMPUESTOS", [-3518205, 428315]),
+        Fila("RESULTADO INTEGRAL TOTAL", [828257, 8075114]),
+    ]
+
+    def leer(filas):
+        tabla = mapear(Tabla(periodos=["2025", "2024"], filas=[
+            Fila(f.etiqueta, list(f.valores)) for f in filas]))
+        return armar_estados(tabla.como_dict(), empresa="Grupo Argos")
+
+    solo19 = leer(pagina19)
+    con20 = leer(pagina19 + pagina20)
+
+    assert solo19["resultados"]["utilidad_neta"] == [733427, 160652]
+    assert con20["resultados"]["utilidad_neta"] == [733427, 160652]
+    # y la hoja de mas tampoco puede tocar el gasto de renta
+    assert con20["resultados"]["impuestos"] == [589725, 297083]
+
+
+def test_el_motor_dice_que_dejo_fuera_lo_discontinuado():
+    """La decision es intencional, asi que tiene que quedar por escrito donde
+    el usuario la lea, no solo en el codigo.
+    """
+    from motor.importacion import armar_estados
+
+    datos = armar_estados({"periodos": ["2025", "2024"], "filas": [
+        {"cuenta": "utilidad_neta",
+         "etiqueta": "UTILIDAD NETA OPERACIONES CONTINUADAS",
+         "valores": [733427, 160652]},
+        {"cuenta": None,
+         "etiqueta": "UTILIDAD NETA OPERACIONES DISCONTINUADAS",
+         "valores": [3613035, 7486147]},
+    ]}, empresa="Grupo Argos")
+
+    avisos = datos["supuestos"]["ajustes_importacion"]
+    aviso = next((a for a in avisos if "utilidad_neta" in a), None)
+    assert aviso, avisos
+    assert "operaciones continuadas" in aviso
+    assert "3.613.035" in aviso, "no nombro la cifra que quedo fuera"
+
+
+def test_una_pyme_no_ve_avisos_que_no_le_incumben():
+    """No tiene operaciones discontinuadas: el aviso no debe aparecer."""
+    from motor.importacion import armar_estados
+
+    datos = armar_estados({"periodos": ["2024"], "filas": [
+        {"cuenta": "utilidad_neta", "etiqueta": "Utilidad neta", "valores": [120]},
+    ]})
+    assert "supuestos" not in datos

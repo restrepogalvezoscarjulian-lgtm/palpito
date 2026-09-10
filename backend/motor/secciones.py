@@ -93,6 +93,51 @@ class Hallazgo:
     es_indice: bool = False
 
 
+@dataclass
+class Bloque:
+    """Un estado financiero que ocupa una o varias hojas seguidas.
+
+    El estado de situación financiera de Grupo Argos ocupa tres páginas —los
+    activos en la 16, los pasivos en la 17, el patrimonio en la 18—, y repartido
+    así ninguna de las tres alcanza el puntaje de una nota del fondo del
+    documento que los mencione todos juntos. Puntuando hojas sueltas, una nota
+    de la página 82 le ganaba al balance verdadero. Sumando el puntaje de las
+    hojas contiguas, el balance recupera el peso que le corresponde.
+    """
+
+    clase: str
+    paginas: list[int]
+    puntaje: int
+    marcadores: list[str] = field(default_factory=list)
+
+    @property
+    def ini(self) -> int:
+        return self.paginas[0]
+
+    @property
+    def fin(self) -> int:
+        return self.paginas[-1]
+
+
+def _agrupar(utiles: list[Hallazgo], clase: str) -> list[Bloque]:
+    """Junta en un bloque las páginas seguidas que puntúan en la misma clase."""
+    bloques: list[Bloque] = []
+    for h in sorted((x for x in utiles if x.clase == clase), key=lambda x: x.pagina):
+        if bloques and h.pagina == bloques[-1].fin + 1:
+            b = bloques[-1]
+            b.paginas.append(h.pagina)
+            b.puntaje += h.puntaje
+            b.marcadores.extend(m for m in h.marcadores if m not in b.marcadores)
+        else:
+            bloques.append(Bloque(clase, [h.pagina], h.puntaje, list(h.marcadores)))
+    return bloques
+
+
+def _separacion(a: Bloque, b: Bloque) -> int:
+    """Páginas que hay entre dos bloques. Cero si se tocan o se solapan."""
+    return max(0, max(a.ini, b.ini) - min(a.fin, b.fin))
+
+
 def _puntuar(texto: str, clase: str) -> tuple[int, list[str]]:
     plano = _normalizar(texto)
     puntaje, encontrados = 0, []
@@ -143,23 +188,37 @@ def analizar_paginas(textos: list[str]) -> dict:
             "descartados_por_indice": descartados_indice,
         }
 
-    # La mejor página de cada clase: la de mayor puntaje, y ante empate la
-    # primera, porque los estados van antes que las notas que los comentan.
-    mejores = {}
-    for clase in ("balance", "resultados"):
-        candidatas = [h for h in utiles if h.clase == clase]
-        if candidatas:
-            mejores[clase] = max(candidatas, key=lambda h: (h.puntaje, -h.pagina))
+    # Las páginas seguidas de la misma clase son un solo estado repartido en
+    # varias hojas, no candidatas que compitan entre ellas.
+    bloques = {clase: _agrupar(utiles, clase) for clase in ("balance", "resultados")}
 
-    paginas = sorted({h.pagina for h in mejores.values()})
+    # Los estados financieros van juntos: primero el balance y enseguida el
+    # estado de resultados. Así que en vez de elegir el mejor de cada clase por
+    # separado y castigar después la distancia, se busca directamente **la
+    # pareja vecina** de mayor puntaje combinado. Una nota que hable de activos
+    # en la página 82 puede puntuar alto, pero no tiene al lado un estado de
+    # resultados que la acompañe; el balance verdadero sí.
+    elegidos: list[Bloque] = []
+    parejas = [
+        (b, r)
+        for b in bloques["balance"]
+        for r in bloques["resultados"]
+        if _separacion(b, r) <= MAX_SEPARACION
+    ]
+    if parejas:
+        b, r = max(parejas, key=lambda p: (p[0].puntaje + p[1].puntaje,
+                                           -min(p[0].ini, p[1].ini)))
+        elegidos = sorted((b, r), key=lambda x: x.ini)
 
-    # Si los dos candidatos estan lejos, uno de los dos es una nota. Se conserva
-    # el de mayor puntaje y se descarta el otro; si ni asi hay confianza, se
-    # devuelve "no encontrado" antes que un rango de noventa paginas.
-    disperso = len(paginas) > 1 and (max(paginas) - min(paginas)) > MAX_SEPARACION
-    if disperso:
-        mejor = max(mejores.values(), key=lambda h: (h.puntaje, -h.pagina))
-        if mejor.puntaje < PESO_TITULO + 2:
+    # Sin pareja vecina hay dos casos distintos: que el documento solo traiga una
+    # de las dos clases (legítimo), o que traiga las dos pero dispersas, que casi
+    # siempre significa que solo se están viendo notas.
+    disperso = not parejas and bool(bloques["balance"]) and bool(bloques["resultados"])
+    if not elegidos:
+        todos = bloques["balance"] + bloques["resultados"]
+        mejor = max(todos, key=lambda x: (x.puntaje, -x.ini))
+        elegidos = [mejor]
+        if disperso and mejor.puntaje < PESO_TITULO + 2:
             return {
                 "encontrado": False,
                 "paginas": "",
@@ -178,22 +237,20 @@ def analizar_paginas(textos: list[str]) -> dict:
                 "descartados_por_indice": descartados_indice,
                 "disperso": True,
             }
-        mejores = {mejor.clase: mejor}
-        paginas = [mejor.pagina]
-
-    if not paginas:
-        paginas = sorted({h.pagina for h in utiles})
-
-    # Los estados suelen ir seguidos, y uno puede ocupar dos hojas. Se toma el
-    # tramo entre el primero y el último, más una página de cola.
-    ini, fin = min(paginas), max(paginas) + 1
-    fin = min(fin, len(textos))
+    # El tramo va del primer bloque al último. Ya no hace falta la página de
+    # cola que se agregaba antes: los bloques abarcan el estado completo, y esa
+    # cola era justamente lo que salvaba de casualidad el caso de Nutresa.
+    ini = min(b.ini for b in elegidos)
+    fin = min(max(b.fin for b in elegidos), len(textos))
     rango = f"{ini}-{fin}" if fin > ini else str(ini)
 
     partes = []
-    for clase, h in mejores.items():
-        nombre = "el balance" if clase == "balance" else "el estado de resultados"
-        partes.append(f"{nombre} en la página {h.pagina}")
+    for b in elegidos:
+        nombre = "el balance" if b.clase == "balance" else "el estado de resultados"
+        if len(b.paginas) > 1:
+            partes.append(f"{nombre} en las páginas {b.ini} a {b.fin}")
+        else:
+            partes.append(f"{nombre} en la página {b.ini}")
     lectura = "Se reconoció " + " y ".join(partes) + f". Se leerán las páginas {rango}."
     if descartados_indice:
         lectura += (f" Se ignoró la tabla de contenido "
@@ -208,6 +265,13 @@ def analizar_paginas(textos: list[str]) -> dict:
             {"pagina": h.pagina, "clase": h.clase, "puntaje": h.puntaje,
              "marcadores": h.marcadores}
             for h in sorted(utiles, key=lambda x: (-x.puntaje, x.pagina))[:12]
+        ],
+        # Qué bloques se eligieron y con cuánto puntaje, para poder discutir en
+        # pantalla por qué el balance de tres hojas le ganó a una nota suelta.
+        "bloques": [
+            {"clase": b.clase, "paginas": list(b.paginas), "puntaje": b.puntaje,
+             "marcadores": b.marcadores}
+            for b in elegidos
         ],
         "descartados_por_indice": descartados_indice,
         "disperso": disperso,

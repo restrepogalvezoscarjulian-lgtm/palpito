@@ -808,6 +808,17 @@ const $ = s => document.querySelector(s);
 let datosCaso = null;   // datos crudos editables
 let analisis  = null;   // resultado del backend
 
+/* Empresas que llegaron por archivo, no de la carpeta casos/.
+   Viven mientras la pestaña esté abierta y NO se escriben en disco: cargar un
+   PDF para probarlo no debe poder tocar los casos del repositorio, que son la
+   evidencia de auditoría del proyecto. Se guardan aquí para poder ir y volver
+   entre la empresa cargada y el caso del taller sin volver a subir el archivo,
+   que es lo que se necesita en una exposición. Al recargar la página se
+   pierden, y eso se avisa en pantalla. */
+const casosCargados = new Map();
+let casosServidor = [];
+let nCargados = 0;
+
 // ---------------------------------------------------------------- utilidades
 const NOMBRES = {
   efectivo:"Efectivo", cuentas_por_cobrar:"Cuentas por cobrar", inventarios:"Inventarios",
@@ -838,14 +849,30 @@ const esc = t => String(t).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":
 
 // ------------------------------------------------------------------- carga
 async function cargarListaCasos(){
-  const casos = await (await fetch("/api/casos")).json();
-  $("#selectorCaso").innerHTML = casos
-    .map(c => `<option value="${c.id}">${esc(c.empresa)}</option>`).join("");
-  if(casos.length) await cargarCaso(casos[0].id);
+  casosServidor = await (await fetch("/api/casos")).json();
+  pintarSelectorCasos();
+  if(casosServidor.length) await cargarCaso(casosServidor[0].id);
+}
+
+/* Dibuja el desplegable con los casos del repositorio y, aparte, las empresas
+   que se cargaron por archivo. Van en su propio grupo para que se vea de un
+   vistazo cuáles son ejemplos del curso y cuál es la empresa que se acaba de
+   subir. */
+function pintarSelectorCasos(){
+  const opcion = c => `<option value="${esc(c.id)}">${esc(c.empresa)}</option>`;
+  let html = casosServidor.map(opcion).join("");
+  if(casosCargados.size){
+    html += `<optgroup label="Cargados en esta sesión">` +
+      [...casosCargados.values()].map(opcion).join("") + `</optgroup>`;
+  }
+  $("#selectorCaso").innerHTML = html;
 }
 
 async function cargarCaso(id){
-  datosCaso = await (await fetch(`/api/casos/${id}`)).json();
+  const cargado = casosCargados.get(id);
+  datosCaso = cargado ? structuredClone(cargado.datos)
+                      : await (await fetch(`/api/casos/${id}`)).json();
+  $("#selectorCaso").value = id;
   await analizar();
   pintarEditor();
 }
@@ -932,6 +959,24 @@ function seccionCalidad(a){
       <span class="etiqueta ${h.severidad}">${h.severidad}</span>${esc(h.mensaje)}
       ${h.detalle ? `<div class="detalle">${esc(h.detalle)}</div>` : ""}
     </div>`).join("");
+  /* Lo que el motor tuvo que cambiar para poder leer el archivo: voltear el
+     signo de un costo que venía entre paréntesis, sumar los dos renglones en
+     que un holding reparte su deuda financiera. El motor siempre lo anotó,
+     pero nadie lo mostraba: quedaba escrito en los supuestos del JSON y ahí
+     moría. Una cifra que no vino tal cual del PDF tiene que decir que no vino
+     tal cual del PDF, o el "nunca en silencio" es solo una frase. */
+  const ajustes = v.ajustes_importacion || [];
+  const bloqueAjustes = !ajustes.length ? "" : `
+    <div class="tarjeta" style="margin-top:16px">
+      <h3>Lo que Pálpito ajustó al leer el archivo</h3>
+      <p class="leyenda">Ninguna de estas cifras entró tal cual venía en el documento.
+        El motor las transformó para poder calcular, y por eso lo dice.</p>
+      ${ajustes.map(a => `
+        <div class="hallazgo">
+          <span class="etiqueta info">ajuste</span>${esc(a)}
+        </div>`).join("")}
+    </div>`;
+
   return `
   <section>
     <div class="regla"><h2>Calidad de los datos</h2></div>
@@ -946,6 +991,7 @@ function seccionCalidad(a){
       </div>
       ${hall || '<div class="hallazgo">Sin observaciones.</div>'}
     </div>
+    ${bloqueAjustes}
   </section>`;
 }
 
@@ -1372,7 +1418,20 @@ async function usarImportado(){
   datosCaso = await r.json();
   $("#importador").classList.remove("abierto");
   $("#btnImportar").textContent = "Cargar archivo";
-  $("#selectorCaso").value = "";
+
+  /* La empresa cargada entra al desplegable con su nombre. Antes aquí se
+     dejaba el selector en blanco, así que la empresa quedaba analizada pero
+     sin figurar en ninguna parte, y devolverse al caso del taller obligaba a
+     volver a subir el archivo. */
+  const id = `cargado-${++nCargados}`;
+  casosCargados.set(id, {
+    id,
+    empresa: datosCaso.empresa || "Empresa importada",
+    datos: structuredClone(datosCaso),
+  });
+  pintarSelectorCasos();
+  $("#selectorCaso").value = id;
+
   await analizar();
   pintarEditor();
 }
@@ -2715,7 +2774,20 @@ $("#btnImportar").addEventListener("click", () => {
   if(abierto && !$("#zonaSoltar") && !tablaImportada) pintarSoltar("");
 });
 
-$("#btnRecalcular").addEventListener("click", async () => { leerEditor(); await analizar(); });
+$("#btnRecalcular").addEventListener("click", async () => {
+  leerEditor();
+  // Si lo que se editó es una empresa cargada por archivo, la copia guardada
+  // se actualiza: devolverse al caso del taller y volver no debe deshacer lo
+  // que se acaba de corregir a mano.
+  const guardado = casosCargados.get($("#selectorCaso").value);
+  if(guardado){
+    guardado.datos = structuredClone(datosCaso);
+    guardado.empresa = datosCaso.empresa || guardado.empresa;
+    pintarSelectorCasos();
+    $("#selectorCaso").value = guardado.id;
+  }
+  await analizar();
+});
 $("#selectorCaso").addEventListener("change", e => cargarCaso(e.target.value));
 
 (async () => {

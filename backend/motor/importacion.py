@@ -77,10 +77,15 @@ SINONIMOS: dict[str, tuple[str, ...]] = {
                             "obligaciones bancarias corto plazo"),
     "pasivo_corriente": ("total pasivo corriente", "pasivo corriente",
                          "pasivos corrientes", "total corriente pasivo"),
+    # OJO: "pasivo no corriente" NO va aqui. El total de pasivos no corrientes
+    # incluye impuesto diferido, provisiones, beneficios a empleados y cuentas
+    # por pagar de largo plazo, que no le cuestan intereses a nadie. En Grupo
+    # Argos ese total eran 12.492.908 contra 7.503.420 de deuda financiera de
+    # verdad: una sobrestimacion del 66%. Es como sumarle al banco lo que se le
+    # debe a los proveedores.
     "deuda_financiera_lp": ("obligaciones financieras largo plazo",
                             "obligaciones financieras lp", "deuda financiera largo plazo",
-                            "deuda financiera lp", "pasivo no corriente",
-                            "pasivos no corrientes", "creditos largo plazo",
+                            "deuda financiera lp", "creditos largo plazo",
                             "obligaciones bancarias largo plazo"),
     "patrimonio": ("total patrimonio", "patrimonio neto", "patrimonio",
                    "capital contable"),
@@ -100,7 +105,12 @@ SINONIMOS: dict[str, tuple[str, ...]] = {
     "utilidad_antes_impuestos": ("utilidad antes de impuestos", "utilidad antes de impuesto",
                                  "resultado antes de impuestos", "uai",
                                  "ganancia antes de impuestos"),
-    "impuestos": ("impuesto de renta", "impuesto sobre la renta", "provision de impuestos",
+    # "impuesto sobre las ganancias" es como lo titulan los estados publicados
+    # bajo NIIF; "impuesto de renta" es el nombre de toda la vida.
+    "impuestos": ("impuesto sobre las ganancias", "impuesto a las ganancias",
+                  "gasto por impuesto sobre la renta", "impuesto de renta",
+                  "impuesto sobre la renta", "impuesto a la renta",
+                  "provision de impuestos", "gasto por impuestos",
                   "impuestos", "impuesto"),
     "utilidad_neta": ("utilidad neta", "ganancia neta", "resultado del ejercicio",
                       "resultado neto", "utilidad del ejercicio"),
@@ -252,8 +262,51 @@ def _frases_ordenadas():
 
 FRASES = _frases_ordenadas()
 
+# Una etiqueta que arranca nombrando un activo o un pasivo, o que dice que algo
+# esta por pagar o por cobrar, es un saldo del balance: nombra algo que la
+# empresa TIENE o DEBE hoy, no algo que gasto durante el ano. Nunca puede
+# llevarse una cuenta del estado de resultados.
+#
+# Sin esta regla, el balance de Grupo Argos entregaba "Activos por impuestos"
+# (257.927) como si fuera el gasto de renta del periodo. El gasto real eran
+# 589.725, y la tasa efectiva salio 19,49% cuando el propio informe declara
+# 44,57% en su Nota 10.3. Nada fallo: la cifra simplemente era otra.
+PREFIJOS_DE_BALANCE = ("activo", "activos", "pasivo", "pasivos")
+# "Impuesto diferido" es un saldo del balance, no el gasto del periodo. En el
+# pasivo no corriente de Argos vale 2.720.397; el gasto de renta son 589.725.
+MARCAS_DE_BALANCE = ("por pagar", "por cobrar", "diferido", "diferidos")
 
-def buscar_cuenta(etiqueta: str):
+# Deuda que si cuesta intereses. Los estados publicados la nombran igual en el
+# corriente y en el no corriente -"Obligaciones financieras" aparece dos veces
+# en la misma pagina-, asi que la etiqueta sola no alcanza para saber cual es:
+# hay que mirar de que lado del corte de "no corrientes" cayo el renglon.
+DEUDA_FINANCIERA = (
+    "obligaciones financieras", "obligaciones bancarias",
+    "bonos e instrumentos financieros compuestos",
+    "bonos e instrumentos financieros", "bonos en circulacion", "bonos",
+    "prestamos bancarios", "deuda financiera",
+)
+
+# Un bono se puede DEBER o se puede TENER. "Bonos en circulacion" es deuda;
+# "Inversiones en bonos" es un activo, y contarla como deuda seria invertirle
+# el signo al endeudamiento de la empresa.
+PREFIJOS_DE_ACTIVO = ("activo", "activos", "inversion", "inversiones",
+                      "derechos", "instrumentos")
+
+
+def _es_saldo_de_balance(limpia: str) -> bool:
+    """Si la etiqueta se delata sola como un saldo, y no como un gasto."""
+    primera = limpia.split(" ", 1)[0]
+    return primera in PREFIJOS_DE_BALANCE or any(m in limpia for m in MARCAS_DE_BALANCE)
+
+
+def _es_deuda_financiera(limpia: str) -> bool:
+    if limpia.split(" ", 1)[0] in PREFIJOS_DE_ACTIVO or "por cobrar" in limpia:
+        return False
+    return any(re.search(r"\b" + re.escape(f) + r"\b", limpia) for f in DEUDA_FINANCIERA)
+
+
+def buscar_cuenta(etiqueta: str, no_corriente: bool = False):
     """Cuenta que corresponde a una etiqueta segun el diccionario.
 
     Devuelve (codigo, confianza) o (None, ""). La confianza es alta cuando la
@@ -261,18 +314,120 @@ def buscar_cuenta(etiqueta: str):
     sinonimo aparece dentro de un texto mas largo, donde puede haber trampa
     ("total activo corriente" contiene "activo corriente" pero tambien
     "corriente" a secas).
+
+    El diccionario compara etiquetas sueltas, sin saber en que estado aparecio
+    el renglon. Por eso hace falta la regla de arriba: hay cuentas que se
+    llaman casi igual y viven en estados distintos.
     """
     limpia = normalizar(etiqueta)
     if not limpia or limpia in RUIDO:
         return None, ""
+    if any(m in limpia for m in NUNCA_SON_CUENTA):
+        return None, ""
+    de_balance = _es_saldo_de_balance(limpia)
     for frase, cuenta in FRASES:
         if limpia == frase:
+            if de_balance and GRUPO[cuenta] == "resultados":
+                continue
             return cuenta, "alta"
     for frase, cuenta in FRASES:
+        if de_balance and GRUPO[cuenta] == "resultados":
+            continue
         if re.search(r"\b" + re.escape(frase) + r"\b", limpia):
             sobra = len(limpia) - len(frase)
             return cuenta, "alta" if sobra <= 6 else "media"
+    # Ultimo recurso: deuda que se llama igual a corto y a largo plazo. Solo
+    # decide la posicion del renglon, y por eso va despues del diccionario, que
+    # si trae los nombres explicitos ("obligaciones financieras largo plazo").
+    if _es_deuda_financiera(limpia):
+        return ("deuda_financiera_lp" if no_corriente else "deuda_financiera_cp"), "alta"
     return None, ""
+
+
+# El corte entre lo corriente y lo no corriente. "Total pasivos corrientes"
+# cierra la primera mitad, asi que lo que sigue es no corriente; "total pasivos
+# no corrientes" cierra el bloque entero.
+#
+# Lo que decide es DE QUE es el total, no si la palabra "no" aparece por ahi:
+# el lector de PDF pega el total con el encabezado siguiente y produce
+# renglones como "total pasivos corrientes pasivos no corrientes", donde las
+# dos cosas conviven. De ahi el .*? perezoso, que se queda con la primera
+# mencion, que es la del total.
+_CIERRA_CORRIENTE = re.compile(r"^total(?:es)?\b.*?\b(no\s+)?corrientes?\b")
+# Un total que no habla de corrientes -"TOTAL ACTIVOS", "TOTAL PASIVOS"- cierra
+# el estado entero, y lo que venga despues vuelve a empezar por lo corriente.
+# Sin esto, un balance que no declare el subtotal de activos no corrientes
+# dejaria la marca puesta, y los pasivos corrientes de la pagina siguiente
+# entrarian como deuda de largo plazo.
+_TOTAL_MAYOR = re.compile(r"^total(?:es)?\b")
+
+# Cuentas que un estado publicado reparte en varios renglones. La deuda
+# financiera de Argos son dos: obligaciones financieras y bonos.
+ACUMULABLES = ("deuda_financiera_cp", "deuda_financiera_lp")
+
+# Renglones que NUNCA son una de las 23 cuentas del catalogo, por mucho que su
+# nombre se parezca:
+#
+# - "operaciones discontinuadas" es plata de vender un negocio. Entra una vez y
+#   no vuelve. Argos gano 3.613.035 asi en 2025 -Summit Materials y la escision
+#   de Grupo Sura-, contra 733.427 de operar. Meterla en la utilidad neta hace
+#   ver una empresa cinco veces mas rentable de lo que es, y proyectar sobre
+#   eso es proyectar un milagro que no se repite.
+# - el "otro resultado integral" son revaluaciones y diferencias en cambio que
+#   no pasaron por el estado de resultados. Su renglon "OTRO RESULTADO
+#   INTEGRAL, NETO DE IMPUESTOS" entraba como el gasto de renta del periodo.
+NUNCA_SON_CUENTA = ("discontinuada", "discontinuadas", "discontinuas",
+                    "resultado integral", "resultados integrales")
+
+# La utilidad neta que sirve para proyectar es la de operaciones continuadas.
+# Una etiqueta que lo dice explicitamente le gana a cualquier otra, incluso al
+# renglon pelado "UTILIDAD NETA" que trae el total: hasta hoy la continuada
+# ganaba solo por aparecer primero en la pagina, y bastaba con leer una hoja
+# de mas para que el total la desplazara por coincidencia exacta.
+MARCAS_CONTINUADAS = ("operaciones continuadas", "actividades continuadas",
+                      "operacion continuada")
+CUENTAS_PREFERENTES = {"utilidad_neta": MARCAS_CONTINUADAS}
+
+
+def _es_preferente(cuenta: str, limpia: str) -> bool:
+    """Si esta etiqueta es la version que el motor quiere para esa cuenta."""
+    return any(m in limpia for m in CUENTAS_PREFERENTES.get(cuenta, ()))
+
+
+def _aviso_de_utilidad_continuada(filas: list, periodos: list[str]) -> list[str]:
+    """Explica que la utilidad neta dejo fuera las operaciones discontinuadas.
+
+    Se dispara solo cuando la fila elegida lo dice en su propio nombre, asi que
+    en una pyme -que no tiene operaciones discontinuadas- no aparece nunca.
+    """
+    elegida = next((f for f in filas if f.get("cuenta") == "utilidad_neta"), None)
+    if elegida is None or not _es_preferente("utilidad_neta",
+                                             normalizar(elegida.get("etiqueta") or "")):
+        return []
+
+    aviso = ("'utilidad_neta' se tomó del renglón de operaciones continuadas "
+             "(\"{}\"), no del total del periodo. Lo discontinuado es plata de "
+             "vender un negocio: entra una vez y no se repite, así que "
+             "proyectar sobre ella sería proyectar un milagro."
+             ).format(str(elegida.get("etiqueta") or "").strip())
+
+    # Si el propio estado trae el renglon de lo discontinuado, se nombra su
+    # cifra periodo por periodo: es el numero que el lector va a echar de menos
+    # al comparar contra el informe. Se recorta por la derecha, igual que el
+    # resto del armador, porque la columna de la izquierda suele ser la nota.
+    for f in filas:
+        limpia = normalizar(f.get("etiqueta") or "")
+        if "discontinuada" in limpia and "utilidad neta" in limpia:
+            valores = [leer_numero(v) for v in (f.get("valores") or [])]
+            if len(valores) > len(periodos):
+                valores = valores[-len(periodos):]
+            partes = [f"{p} {v:,.0f}".replace(",", ".")
+                      for p, v in zip(periodos, valores) if v is not None]
+            if partes:
+                aviso += (" El estado reporta aparte, en operaciones "
+                          "discontinuadas: " + "; ".join(partes) + ".")
+            break
+    return [aviso]
 
 
 def mapear(tabla: Tabla) -> Tabla:
@@ -281,11 +436,29 @@ def mapear(tabla: Tabla) -> Tabla:
     Si dos filas reclaman la misma cuenta se conserva la de mejor confianza y
     la otra queda libre, con una nota que lo explica. Adivinar en silencio ahi
     seria la forma mas facil de arruinar un balance.
+
+    Va leyendo en orden, porque hay etiquetas que solo se distinguen por donde
+    caen: "Obligaciones financieras" antes del total corriente es deuda de
+    corto plazo, y despues, de largo.
     """
     tomadas: dict[str, Fila] = {}
+    no_corriente = False
     for fila in tabla.filas:
-        cuenta, confianza = buscar_cuenta(fila.etiqueta)
+        limpia = normalizar(fila.etiqueta)
+        cuenta, confianza = buscar_cuenta(fila.etiqueta, no_corriente=no_corriente)
+        corte = _CIERRA_CORRIENTE.search(limpia)
+        if corte:
+            # Total DE corrientes: abre lo no corriente. Total DE no
+            # corrientes: cierra el bloque y lo que sigue es otro estado.
+            no_corriente = not corte.group(1)
+        elif _TOTAL_MAYOR.search(limpia):
+            no_corriente = False
         if not cuenta:
+            continue
+        if cuenta in ACUMULABLES and cuenta in tomadas:
+            # Varios renglones de deuda: se marcan todos y el armador los suma.
+            fila.cuenta, fila.confianza, fila.asignado_por = cuenta, confianza, "diccionario"
+            fila.grupo = GRUPO[cuenta]
             continue
         previa = tomadas.get(cuenta)
         if previa is None:
@@ -293,8 +466,17 @@ def mapear(tabla: Tabla) -> Tabla:
             fila.grupo = GRUPO[cuenta]
             tomadas[cuenta] = fila
             continue
-        # Ya habia una fila para esa cuenta: gana la de confianza alta.
-        if confianza == "alta" and previa.confianza != "alta":
+        # Una etiqueta que dice "operaciones continuadas" es la que el motor
+        # quiere, aunque la otra empate mejor con el diccionario. El renglon
+        # pelado "UTILIDAD NETA" trae el total del ano, discontinuadas
+        # incluidas, y por ser coincidencia exacta desplazaba a la buena.
+        preferente = _es_preferente(cuenta, limpia)
+        if _es_preferente(cuenta, normalizar(previa.etiqueta)) and not preferente:
+            fila.nota = (f"Se parece a {cuenta}, pero se conservo la fila "
+                         f"\"{previa.etiqueta}\", que es la de operaciones "
+                         f"continuadas.")
+            continue
+        if preferente or (confianza == "alta" and previa.confianza != "alta"):
             previa.cuenta, previa.grupo, previa.asignado_por = None, "", ""
             previa.nota = (f"Otra fila se identifico mejor como {cuenta}. "
                            "Reviselo si esta fila era la correcta.")
@@ -732,11 +914,14 @@ def armar_estados(tabla_cruda: dict, empresa: str = "", moneda: str = "COP",
                          "gastos_financieros", "impuestos", "compras",
                          "depreciacion")
     ajustes = []
+    sumados: dict[str, int] = {}
 
     usadas = set()
     for fila in tabla_cruda.get("filas") or []:
         cuenta = fila.get("cuenta")
-        if not cuenta or cuenta not in GRUPO or cuenta in usadas:
+        if not cuenta or cuenta not in GRUPO:
+            continue
+        if cuenta in usadas and cuenta not in ACUMULABLES:
             continue
         valores = [leer_numero(v) for v in (fila.get("valores") or [])]
         # Todas las cuentas tienen que traer un valor por periodo: si faltan se
@@ -757,13 +942,42 @@ def armar_estados(tabla_cruda: dict, empresa: str = "", moneda: str = "COP",
 
         if cuenta in SIEMPRE_POSITIVAS and any(v is not None and v < 0 for v in valores):
             valores = [None if v is None else abs(v) for v in valores]
+            # Con tildes: este texto se LEE en pantalla, en la seccion de
+            # calidad de los datos. Lo que va sin tildes en este archivo son
+            # las claves de SINONIMOS, que se comparan contra etiquetas ya
+            # normalizadas; la prosa que ve el usuario no se compara con nada.
             ajustes.append(
-                f"'{cuenta}' venia en negativo y se volteo a positivo. Los "
-                f"estados publicados presentan costos y gastos entre parentesis "
-                f"porque los estan restando; el motor los espera como monto.")
+                f"'{cuenta}' venía en negativo y se volteó a positivo. Los "
+                f"estados publicados presentan costos y gastos entre paréntesis "
+                f"porque los están restando; el motor los espera como monto.")
+
+        # La deuda financiera viene repartida en varios renglones -en Argos,
+        # obligaciones financieras y bonos-, asi que se suma. El aviso no se
+        # escribe aqui sino al final, con el total de renglones: escribiendolo
+        # en cada vuelta salian dos avisos, y el primero decia "2 renglones"
+        # cuando al final habian sido tres.
+        if cuenta in ACUMULABLES and cuenta in datos[GRUPO[cuenta]]:
+            previos = datos[GRUPO[cuenta]][cuenta]
+            valores = [
+                None if (a is None and b is None) else (a or 0) + (b or 0)
+                for a, b in zip(previos, valores)
+            ]
+            sumados[cuenta] = sumados.get(cuenta, 1) + 1
 
         datos[GRUPO[cuenta]][cuenta] = valores
         usadas.add(cuenta)
+
+    for cuenta, cuantos in sumados.items():
+        ajustes.append(
+            f"'{cuenta}' se armó sumando {cuantos} renglones del estado, "
+            f"porque la deuda financiera aparece separada (por ejemplo "
+            f"obligaciones financieras y bonos). Revise que no falte ninguno.")
+
+    # Si la utilidad neta salio del renglon de operaciones continuadas, hay que
+    # decirlo: el lector que compare contra el informe va a ver otra cifra en
+    # la linea "UTILIDAD NETA", y tiene derecho a saber por que.
+    ajustes.extend(_aviso_de_utilidad_continuada(
+        tabla_cruda.get("filas") or [], periodos))
 
     if not datos["balance"] and not datos["resultados"]:
         raise ValueError(

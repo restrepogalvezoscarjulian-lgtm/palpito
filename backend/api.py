@@ -102,6 +102,14 @@ def _analizar(ef: EstadosFinancieros) -> dict:
             "semaforo": semaforo(hallazgos),
             "resumen": resumen(hallazgos),
             "hallazgos": [asdict(h) for h in hallazgos],
+            # Lo que el motor tuvo que cambiar para poder leer el archivo:
+            # voltear un signo, sumar dos renglones de deuda. Va aqui, junto a
+            # la calidad de los datos, porque hasta ahora se anotaba en los
+            # supuestos y NADIE lo leia: ni la interfaz, ni la validacion, ni
+            # el diagnostico. El motor decia "nunca en silencio" y lo hacia en
+            # silencio. Quien mira una cifra tiene derecho a saber que no vino
+            # tal cual del PDF.
+            "ajustes_importacion": list(ef.supuestos.get("ajustes_importacion") or []),
         },
         "indicadores": [
             {**asdict(i), "disponible": i.disponible, "variacion": i.variacion()}
