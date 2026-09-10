@@ -11,10 +11,11 @@ Verificado hoy, no de memoria:
 
 - **`336 passed`** — la suite completa (empezó el día en 300)
 - **Argos entra bien de punta a punta** con el PDF real de 223 páginas
-- **Commit hecho, LOCAL**: 1.112 líneas en 10 archivos (816 de código, el resto
-  este documento y `CRUCES-VISTOS.md`)
-- 🔴 **El repositorio local va 3 commits por delante de GitHub, SIN SUBIR.**
-  Oscar eligió commit local sin push. El trabajo sigue en un solo disco duro.
+- **Commit `588ce09`**: 1.113 líneas en 10 archivos (816 de código, el resto este
+  documento y `CRUCES-VISTOS.md`)
+- ✅ **SUBIDO A GITHUB** el 10-sep-2026. El repositorio local y el remoto están
+  al día: `main...origin/main`, sin nada por delante. Es la primera vez que el
+  trabajo deja de vivir en un solo disco duro.
 - <https://github.com/restrepogalvezoscarjulian-lgtm/palpito> (MIT)
 
 ---
@@ -139,7 +140,9 @@ cifra que se dejó fuera.
 opciones. La tercera —un botón *"Guardar este caso"*— sigue disponible el día que
 la pida.
 
-**El commit sigue local, sin push.** **No subir sin que lo pida.**
+**Se subió a GitHub**, después de dos días de commits solo locales. Oscar lo
+pidió cuando se le dijo que 1.113 líneas vivían en un solo disco duro. ⚠️ Esto
+**no** convierte el push en automático: **sigue sin subirse sin que lo pida.**
 
 ### Decisiones de fondo, que siguen vigentes
 
@@ -369,8 +372,9 @@ decirlo antes de que lo pregunten.
 
 ## 🔴 Pendientes que son de Oscar, no míos
 
-- **¿Se sube a GitHub?** Van **3 commits locales sin push**. El commit protege de
-  borrar algo por accidente, **no del disco duro**.
+- ~~**¿Se sube a GitHub?**~~ ✅ **Resuelto el 10-sep-2026.** Oscar lo pidió y se
+  subió. De aquí en adelante la pregunta es otra: **si sigue queriendo push cada
+  vez, o vuelve a commit local.** Sigue sin subirse solo: preguntar antes.
 - **¿Cuándo es la exposición?** El profesor dijo el 2 de septiembre que quedaban
   tres clases y que la última era la nota. **Ya tiene fecha real.**
 - **¿Qué exige la rúbrica?** Sin respuesta desde el 29 de agosto.
