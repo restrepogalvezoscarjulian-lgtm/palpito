@@ -1065,8 +1065,18 @@ async function pedirIA(ruta, cuerpo, destino, textoCargando){
       method:"POST", headers:{"Content-Type":"application/json"},
       body: JSON.stringify(cuerpo)
     });
-    const d = await r.json();
-    if(!r.ok){ throw new Error(d.detail || "Error del servidor"); }
+    /* Un error del servidor no siempre viene en JSON. Cuando algo revienta
+       fuera de un HTTPException, FastAPI responde "Internal Server Error" en
+       texto plano, y r.json() fallaba con "Unexpected token 'I'" — un error
+       sobre el error, que tapaba el de verdad. */
+    const crudo = await r.text();
+    let d = null;
+    try{ d = JSON.parse(crudo); }catch(_){ /* no era JSON */ }
+    if(!r.ok){
+      throw new Error((d && d.detail) || crudo.slice(0, 300) ||
+                      `El servidor respondió ${r.status}.`);
+    }
+    if(d === null) throw new Error("El servidor respondió algo que no es JSON.");
     if(!d.disponible){ salida.textContent = d.motivo; return; }
     salida.className = "prosa";
     salida.innerHTML = md(d.texto) + sello(d.modelo);

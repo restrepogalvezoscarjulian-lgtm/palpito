@@ -181,7 +181,12 @@ def _llamar(mensajes: list[dict], max_tokens: int = 1200) -> str:
         headers={
             "Authorization": f"Bearer {clave}",
             "Content-Type": "application/json",
-            "X-Title": "Palpito - Diagnóstico Financiero",
+            # Sin tildes A PROPOSITO: una cabecera HTTP solo admite ASCII, y la
+            # "o" con tilde de "Diagnostico" reventaba la llamada entera con
+            # "'ascii' codec can't encode character '\xf3' in position 15".
+            # Es el unico texto del proyecto donde la tilde esta prohibida:
+            # este no lo lee una persona, lo lee un servidor.
+            "X-Title": "Palpito - Diagnostico Financiero",
         },
         json={
             "model": modelo(),

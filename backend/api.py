@@ -181,6 +181,24 @@ def analizar(entrada: EntradaEstados):
     return _analizar(ef)
 
 
+def _falla_de_ia(exc: Exception) -> str:
+    """Convierte cualquier tropiezo del modelo en un mensaje que se pueda leer.
+
+    Las tres rutas de IA atrapaban solo RuntimeError. Cuando la llamada fallo
+    por otra cosa -una tilde en una cabecera HTTP, que lanza UnicodeEncodeError-
+    la excepcion se escapo, FastAPI devolvio "Internal Server Error" en texto
+    plano, y la interfaz, que esperaba JSON, mostro "Unexpected token 'I'".
+    Dos errores encima del verdadero, y ninguno decia que habia pasado.
+
+    Lo que la IA no pueda redactar no invalida nada: los numeros ya estan
+    calculados sin ella.
+    """
+    detalle = str(exc).strip() or exc.__class__.__name__
+    return (f"La redacción con IA falló: {detalle}. "
+            f"Los indicadores, las alertas y el puntaje de esta página se "
+            f"calcularon sin IA y siguen siendo válidos.")
+
+
 @app.post("/api/narrar", tags=["ia"])
 def narrar(entrada: EntradaNarrativa):
     """Redacta el diagnóstico en prosa.
@@ -193,8 +211,8 @@ def narrar(entrada: EntradaNarrativa):
         raise HTTPException(422, str(exc)) from exc
     try:
         return narrativa.narrar(_analizar(ef))
-    except RuntimeError as exc:
-        raise HTTPException(502, str(exc)) from exc
+    except Exception as exc:                     # noqa: BLE001
+        raise HTTPException(502, _falla_de_ia(exc)) from exc
 
 
 @app.post("/api/preguntar", tags=["ia"])
@@ -206,10 +224,15 @@ def preguntar(entrada: EntradaNarrativa):
         raise HTTPException(422, str(exc)) from exc
     try:
         return narrativa.responder(_analizar(ef), entrada.pregunta or "")
+    except UnicodeError as exc:
+        # UnicodeEncodeError hereda de ValueError, asi que sin esta rama se
+        # reportaba como "pregunta invalida" (422) una falla que era del
+        # servidor, no del usuario.
+        raise HTTPException(502, _falla_de_ia(exc)) from exc
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
-    except RuntimeError as exc:
-        raise HTTPException(502, str(exc)) from exc
+    except Exception as exc:                     # noqa: BLE001
+        raise HTTPException(502, _falla_de_ia(exc)) from exc
 
 
 @app.get("/api/contexto-ia", tags=["ia"])
@@ -399,8 +422,8 @@ def narrar_proyecto(entrada: EntradaProyecto):
     evaluacion = evaluar_proyecto(Proyecto(**entrada.model_dump()))
     try:
         return narrativa.narrar_proyecto(evaluacion)
-    except RuntimeError as exc:
-        raise HTTPException(502, str(exc)) from exc
+    except Exception as exc:                     # noqa: BLE001
+        raise HTTPException(502, _falla_de_ia(exc)) from exc
 
 
 # ------------------------------------------------------------------ interfaz
