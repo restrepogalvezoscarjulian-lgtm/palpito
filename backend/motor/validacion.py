@@ -101,21 +101,47 @@ def _subtotales_balance(ef: EstadosFinancieros, i: int, periodo: str) -> list[Ha
             Hallazgo(severidad=severidad, codigo="SUBTOTAL_BALANCE", mensaje=mensaje, detalle=detalle)
         )
 
-    # Activo total = activo corriente + activo no corriente
+    # Activo total contra activo corriente + PPE.
+    #
+    # Que el total sea MAYOR es lo normal, no un error: toda empresa mediana o
+    # grande tiene credito mercantil, intangibles, inversiones en asociadas y
+    # derechos de uso, y ninguna de esas cuentas cabe en el catalogo de 23. En
+    # el informe de Almacenes Exito faltan asi 7,8 billones, y marcarlo como
+    # error hacia que un balance perfectamente cuadrado saliera con el semaforo
+    # en rojo. Un error que no es un error entrena a no leer los errores.
+    #
+    # Que el total sea MENOR si es imposible: las partes no pueden sumar mas
+    # que el todo.
     total = ef.valor("activo_total", i)
     corriente = ef.valor("activo_corriente", i)
     ppe = ef.valor("propiedad_planta_equipo", i)
     if None not in (total, corriente, ppe) and not _cerca(corriente + ppe, total):
-        salida.append(
-            Hallazgo(
+        partes = corriente + ppe
+        if partes > total:
+            salida.append(Hallazgo(
                 severidad="error",
                 codigo="SUBTOTAL_ACTIVO",
                 mensaje=(
-                    f"{periodo}: activo corriente + PPE ({corriente + ppe:,.0f}) no coincide "
-                    f"con el activo total declarado ({total:,.0f})."
-                ),
-            )
-        )
+                    f"{periodo}: activo corriente + PPE ({partes:,.0f}) SUPERA al "
+                    f"activo total declarado ({total:,.0f})."),
+                detalle=("Las partes no pueden sumar mas que el todo: hay un error "
+                         "de digitacion o una cuenta esta mal asignada."),
+            ))
+        else:
+            salida.append(Hallazgo(
+                severidad="info",
+                codigo="ACTIVOS_FUERA_DEL_CATALOGO",
+                mensaje=(
+                    f"{periodo}: quedan {total - partes:,.0f} de activos fuera del "
+                    f"detalle (activo corriente + PPE suman {partes:,.0f} de "
+                    f"{total:,.0f})."),
+                detalle=("Es lo normal en una empresa grande: credito mercantil, "
+                         "intangibles, inversiones en asociadas y derechos de uso no "
+                         "caben en las 23 cuentas del catalogo. No invalida el "
+                         "analisis -liquidez, margenes, rotacion y rentabilidad no "
+                         "dependen de esas cuentas- pero el detalle del activo queda "
+                         "incompleto."),
+            ))
     return salida
 
 

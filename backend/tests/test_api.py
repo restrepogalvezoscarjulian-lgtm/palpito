@@ -355,3 +355,44 @@ def test_sin_periodos_no_se_guarda(cliente, limpiar_guardados):
     r = cliente.post("/api/casos",
                      json={"estados": dict(ESTADOS_NUEVOS, periodos=[])})
     assert r.status_code == 422
+
+
+# ----------------------------------------- borrar un caso guardado (punto 2)
+
+
+def test_un_caso_guardado_se_puede_borrar(cliente, limpiar_guardados):
+    creado = cliente.post("/api/casos", json={"estados": ESTADOS_NUEVOS}).json()
+    assert cliente.get(f"/api/casos/{creado['id']}").status_code == 200
+    r = cliente.delete(f"/api/casos/{creado['id']}")
+    assert r.status_code == 200, r.text
+    assert cliente.get(f"/api/casos/{creado['id']}").status_code == 404
+
+
+@pytest.mark.parametrize("caso", [
+    "comercial_andina", "andina_trienio", "andina_con_benchmark",
+])
+def test_los_casos_del_taller_no_se_pueden_borrar(cliente, caso, limpiar_guardados):
+    r = cliente.delete(f"/api/casos/{caso}")
+    assert r.status_code == 403, f"{caso} se pudo borrar"
+    assert "taller" in r.json()["detail"]
+    # y siguen ahi
+    assert cliente.get(f"/api/casos/{caso}").status_code == 200
+
+
+def test_borrar_algo_que_no_existe_lo_dice(cliente, limpiar_guardados):
+    assert cliente.delete("/api/casos/no_existe_nada").status_code == 404
+
+
+@pytest.mark.parametrize("id_malo", ["../../otro", r"..\..\otro", "sub/carpeta",
+                                    "..", ".", "casos"])
+def test_borrar_no_puede_salirse_de_la_carpeta(cliente, id_malo, limpiar_guardados,
+                                               tmp_path):
+    """Lo que importa no es QUE codigo devuelve, sino que no borre nada."""
+    import api
+
+    testigo = api.CASOS / "testigo.json"
+    testigo.write_text("{}", encoding="utf-8")
+    r = cliente.delete(f"/api/casos/{id_malo}")
+    assert r.status_code >= 400, f"{id_malo} devolvio {r.status_code}"
+    assert testigo.exists(), f"{id_malo} borro algo que no debia"
+    assert list(api.CASOS.iterdir()), "se vacio la carpeta"

@@ -218,6 +218,23 @@ def guardar_caso(entrada: EntradaGuardar):
             "periodos": datos.get("periodos"), "sobrescrito": ya_existia}
 
 
+@app.delete("/api/casos/{caso_id}", tags=["casos"])
+def borrar_caso(caso_id: str):
+    """Borra un caso guardado. Los tres del taller no se pueden borrar."""
+    if caso_id in CASOS_PROTEGIDOS:
+        raise HTTPException(
+            403,
+            f"'{caso_id}' es un caso del taller: la suite de pruebas lo verifica "
+            f"contra valores calculados a mano. No se puede borrar desde aqui.")
+    ruta = (CASOS / f"{_nombre_de_archivo(caso_id)}.json").resolve()
+    if ruta.parent != CASOS.resolve():
+        raise HTTPException(400, "Identificador invalido.")
+    if not ruta.exists():
+        raise HTTPException(404, f"No existe el caso '{caso_id}'.")
+    ruta.unlink()
+    return {"borrado": caso_id}
+
+
 @app.get("/api/casos/{caso_id}", tags=["casos"])
 def obtener_caso(caso_id: str):
     """Devuelve los datos crudos de un caso, para poder editarlos."""

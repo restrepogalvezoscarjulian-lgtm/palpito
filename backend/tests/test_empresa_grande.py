@@ -304,8 +304,40 @@ def test_la_deuda_se_reparte_segun_de_que_lado_del_corte_cayo():
     cuentas = [f.cuenta for f in mapear(tabla).filas]
     assert cuentas == [
         "deuda_financiera_cp", "deuda_financiera_cp", "pasivo_corriente",
-        "deuda_financiera_lp", None, "deuda_financiera_lp", None,
+        "deuda_financiera_lp", None, "deuda_financiera_lp", "pasivo_no_corriente",
     ], cuentas
+    # Lo importante sigue en pie: el TOTAL de pasivos no corrientes (12.492.908)
+    # no puede confundirse con la deuda financiera (7.503.420). Ahora tiene su
+    # propia cuenta en vez de perderse, que es lo que hacia que ningun balance
+    # real cuadrara.
+    assert tabla.filas[-1].cuenta != "deuda_financiera_lp"
+
+
+def test_el_renglon_pegado_conserva_el_significado_del_principio():
+    """El lector de PDF pega el encabezado siguiente al total anterior. Una
+    etiqueta dice lo que dice por como EMPIEZA; lo de atras es ruido.
+    """
+    from motor.importacion import buscar_cuenta
+
+    assert buscar_cuenta("TOTAL PASIVOS CORRIENTES PASIVOS NO CORRIENTES")[0] \
+        == "pasivo_corriente"
+    assert buscar_cuenta("TOTAL ACTIVOS CORRIENTES ACTIVOS NO CORRIENTES")[0] \
+        == "activo_corriente"
+
+
+def test_el_total_de_pasivos_tiene_su_propia_cuenta():
+    """Sin ella, el motor armaba el pasivo total sumando lo que encontrara y
+    NINGUN balance de una empresa real cuadraba. En Almacenes Exito 2024 el
+    "Total pasivo" (9.539.043) estaba en el PDF sin asignar: con el patrimonio
+    da 17.554.555, que es exactamente el activo total declarado.
+    """
+    from motor.importacion import buscar_cuenta
+
+    for etiqueta in ("Total pasivo", "TOTAL PASIVOS", "Total de pasivos",
+                     "Pasivos totales"):
+        assert buscar_cuenta(etiqueta)[0] == "pasivo_total", etiqueta
+    for etiqueta in ("Total pasivo no corriente", "TOTAL PASIVOS NO CORRIENTES"):
+        assert buscar_cuenta(etiqueta)[0] == "pasivo_no_corriente", etiqueta
 
 
 def test_la_deuda_repartida_en_varios_renglones_se_suma_y_se_anota():

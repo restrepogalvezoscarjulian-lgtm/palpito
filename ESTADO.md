@@ -1,124 +1,110 @@
-# Estado — 10 de septiembre de 2026 (segunda jornada del día)
+# Estado — 10 de septiembre de 2026 (tercera jornada del día)
 
 ## Dónde vamos
 
 **Pálpito** es una aplicación de diagnóstico financiero para *Análisis y Gerencia
-Financiera* (Universidad El Bosque). **Los tres errores que destapó Grupo Argos
-esta mañana están arreglados**, y arreglarlos destapó otros cuatro que también
-están arreglados.
+Financiera* (Universidad El Bosque). Hoy pasó de "funciona con el caso del
+taller" a **leer informes anuales reales de empresas colombianas**.
 
-Verificado hoy, no de memoria:
+Verificado ahora, no de memoria:
 
-- **`336 passed`** — la suite completa (empezó el día en 300)
-- **Argos entra bien de punta a punta** con el PDF real de 223 páginas
-- **Commit `588ce09`**: 1.113 líneas en 10 archivos (816 de código, el resto este
-  documento y `CRUCES-VISTOS.md`)
-- ✅ **SUBIDO A GITHUB** el 10-sep-2026. El repositorio local y el remoto están
-  al día: `main...origin/main`, sin nada por delante. Es la primera vez que el
-  trabajo deja de vivir en un solo disco duro.
-- <https://github.com/restrepogalvezoscarjulian-lgtm/palpito> (MIT)
+- **`393 passed`** — la suite completa (el día empezó en 300)
+- **Almacenes Éxito entra limpio**: 0 errores de calidad, margen bruto 25,3 %,
+  días de inventario 63, cartera 11 días, endeudamiento 54 %. Cifras de un
+  supermercado de verdad.
+- 🔴 **HAY TRABAJO SIN COMMIT.** 6 archivos modificados. El último commit es
+  `14253e5`; todo lo posterior existe en un solo disco duro.
+- <https://github.com/restrepogalvezoscarjulian-lgtm/palpito> (MIT). Lo
+  comprometido sí está subido: `main...origin/main` sin nada por delante.
 
 ---
 
 ## Lo primero al retomar
 
-**Nada urgente del motor.** Lo que queda es decisión de Oscar (más abajo) y tres
-cosas menores:
+### 1. 🔴 Borrar dos archivos que dejaron mis pruebas en `casos/`
 
-1. **El desborde a 400px** en Indicadores, Diagnóstico, Benchmark y Proyecto.
-   Pre-existente y comprobado como tal: se midió la versión comprometida y da
-   **las mismas cifras exactas**. Para proyector no molesta; para celular sí.
-2. **Las tres rutas de IA no se han probado** (`/api/narrar`, `/api/preguntar`,
-   `/api/proyecto/narrar`). Salen a internet y gastan créditos de OpenRouter.
-3. **Un 404 de `favicon.ico`** en cada carga. Cosmético.
+**Sigue pendiente: lo tiene que hacer Oscar.** Al asistente le bloquearon el
+borrado de archivos.
 
-### Cómo reproducir el caso Argos en un minuto
-
-```bash
-cd palpito/backend
-python -c "
-from motor import importacion as I, secciones
-ruta = r'C:\Users\Lenovo\Downloads\0054345457_0066_000058_0000_000000_000000_C-C_2025-12-31.pdf'
-datos = open(ruta,'rb').read()
-rango = secciones.detectar_en_pdf(datos)['paginas']   # da 16-19
-est = I.armar_estados(I.importar('a.pdf', datos, paginas=rango).como_dict())
-print(rango, est['balance']['deuda_financiera_lp'], est['resultados']['utilidad_neta'])
-"
+```powershell
+cd "C:\Users\Lenovo\Documents\UNIVERSIDAD\PERIODO 2026_4\ANALISIS Y GERENCIA FINACIERA\palpito"
+Remove-Item "casos\comercial_andina_s_a_con_benchmark_de_ejemplo.json"
+Remove-Item "casos\grupo_bolivar.json"
 ```
 
-Debe dar `16-19 [7503420.0, 8500278.0] [733427.0, 160652.0]`.
+⚠️ **Corrección al ESTADO anterior, que decía que el primero era un duplicado.**
+No lo es: es peor. Lleva el **nombre y los periodos de Comercial Andina** pero
+por dentro tiene las **cifras reales de Éxito** (ventas 21.880.509). Es decir,
+en el desplegable se ofrece como el caso del taller y muestra los números de un
+supermercado. Salió del defecto de la casilla "Añadir estos años" que se arregló
+el 10-sep (ver abajo). **Los tres del taller están intactos** (verificado
+comparando campo por campo).
 
-⚠️ **Leer ese PDF tarda ~40 s por pasada.** Tres rangos seguidos se pasan del
-tiempo de espera de una consola. Hágalo en segundo plano.
+### 2. ✅ Resuelto — lo que quedó a medias ya se probó en el navegador
 
-El PDF vive en `C:\Users\Lenovo\Downloads\` (nombre largo que empieza por
-`0054345457_`). **No está en el repositorio** y no debería entrar: son 3,9 MB de
-un documento público que se puede volver a bajar.
+Verificado el 10-sep contra el servidor real, con `exito 2024.pdf` y
+`exito 2025.pdf` subidos **a la vez**:
+
+- Cola de varios archivos: revisa uno por uno y queda **2023-2024-2025** ✅
+- "Guardar este caso": queda en disco con los tres periodos ✅
+- "Borrar": aparece solo en casos propios, y borra ✅
+- Los del taller están protegidos **por partida doble**: el botón no aparece y
+  el servidor responde **403** si se pide la ruta a mano ✅
+
+**Y destapó dos defectos, ya arreglados:**
+
+1. 🔴 **La casilla "Añadir estos años" venía marcada también en el PRIMER
+   archivo de la tanda**, contra lo que decía su propio comentario. Efecto: el
+   primer archivo se fundía con **el caso que estuviera en pantalla** —al abrir
+   la app, el del taller—. Es el origen del JSON corrupto del punto 1. Ahora hay
+   `posicionEnTanda` y solo se marca del segundo en adelante.
+2. "Quedan 1 archivo por revisar" → concuerda en singular.
+
+⚠️ **Trampa nueva, y cara:** el navegador **reusa el `index.html` de la carga
+anterior**. La prueba corrió dos veces dando el resultado viejo idéntico, sin
+que nada fallara. En el guion de DevTools hay que mandar
+`Network.setCacheDisabled {cacheDisabled:true}` antes de navegar.
+
+⚠️ Al cargar los PDFs, la empresa queda con el **nombre del archivo**
+("exito 2024"). Se corrige a mano en el campo *Empresa* de la revisión, pero
+**hay que acordarse antes de la exposición**.
+
+### 3. Hacer commit
+
+**Preguntarle a Oscar antes de hacer push.**
 
 ---
 
-## Lo que se arregló hoy, y contra qué se verificó
+## Lo que se arregló hoy (tercera jornada)
 
-| | Antes | Ahora | Verdad del informe |
-|---|---|---|---|
-| Rango detectado | 19-20 | **16-19** | 16-19 |
-| Cuentas reconocidas | 7 | **18** | — |
-| Deuda financiera LP | 12.492.908 | **7.503.420** | 7.503.420 |
-| Deuda financiera CP | — | **2.182.888** | 2.182.888 |
-| Impuestos | 257.927 | **589.725** | 589.725 |
-| Tasa efectiva | 19,49 % | **44,57 %** | 44,57 % (Nota 10.3) |
-| Utilidad neta | 733.427 *por accidente* | **733.427 *por diseño*** | continuadas |
+Oscar diagnosticó el problema él mismo: *"no son los estados, es los datos que el
+modelo elige como predeterminados"*. Tenía razón, y las cifras lo confirman.
 
-### 1. El detector perdía el activo entero
+| | Antes | Ahora |
+|---|---|---|
+| Errores en Éxito 2024 | **10** | **0** |
+| `ventas` | 60.481 (un renglón de derivados) | **21.880.509** ✅ |
+| `pasivo_total` | no existía en el catálogo | **9.539.043** ✅ |
+| Días de inventario | 3.614 (diez años) | **62,9** ✅ |
 
-El diagnóstico de la mañana estaba **incompleto**. El detector no elegía la
-página 18: elegía la **82**, que es una nota. Ver `CRUCES-VISTOS.md §4`, que
-ahora trae los puntajes medidos.
+**Cuatro causas, todas nuestras:**
 
-`motor/secciones.py` agrupa páginas contiguas de la misma clase en **bloques que
-suman puntaje**, y elige **la pareja balance+resultados que va junta**. El
-balance de tres hojas puntúa 19 y le gana a los 8 de la nota.
+1. **Faltaban dos cuentas en el catálogo del importador.** `pasivo_total` y
+   `pasivo_no_corriente` existen en `modelos.py` desde siempre, pero el
+   importador no podía producirlas, así que **ningún balance real cuadraba**.
+   El "Total pasivo" de Éxito estaba en el PDF sin asignar: con el patrimonio da
+   exactamente el activo total.
+2. **Renglones del flujo de efectivo se disfrazaban de resultados.**
+   *(`CRUCES-VISTOS.md §9`.)*
+3. **El diccionario elegía por frase más larga, no por posición.** Ahora manda lo
+   que aparece **antes** en la etiqueta: `"TOTAL PASIVOS CORRIENTES Pasivos no
+   corrientes"` trae el saldo del corriente, y lo de atrás es el encabezado
+   pegado.
+4. **Un error que no era un error.** *(`CRUCES-VISTOS.md §10`.)*
 
-⚠️ **Se quitó la "página de cola"** que el detector sumaba. Resultó peligrosa:
-incluir la página 20 de Argos subía la utilidad neta de 733.427 a 4.346.462.
-
-### 2. Un activo se colaba en el estado de resultados
-
-`motor/importacion.py`. Una etiqueta que **empieza** por activo/pasivo, o que
-dice **"por pagar"**, **"por cobrar"** o **"diferido"**, es un saldo del balance
-y no puede llevarse ninguna cuenta de resultados.
-
-Hizo falta "diferido" por una trampa que no estaba vista en la mañana:
-**"Impuesto diferido" (2.720.397)** también se colaba.
-
-### 3. Todo el pasivo de largo plazo se contaba como deuda financiera
-
-Se quitó `"pasivo no corriente"` del diccionario —ese total incluye impuesto
-diferido, provisiones y cuentas por pagar, que no cuestan intereses— y se
-reconoce la deuda de verdad. Como `"Obligaciones financieras"` aparece **dos
-veces con el mismo nombre** en la misma página, el mapeo lee **en orden** y
-recuerda de qué lado del corte de "no corrientes" va cada renglón. Los dos
-renglones (obligaciones + bonos) **se suman**.
-
-### 4. La utilidad neta continuada ahora es intencional
-
-Ver `CRUCES-VISTOS.md §6`. Lo discontinuado y el resultado integral ya no pueden
-ser ninguna cuenta, y una etiqueta que dice "operaciones continuadas" gana
-siempre. **Leer Argos con 16-19, 16-20 o 16-21 da la misma cifra.**
-
-### 5. "Nunca en silencio" ahora se cumple de verdad
-
-Ver `CRUCES-VISTOS.md §7`. `supuestos.ajustes_importacion` se escribía y **nadie
-lo leía**. Ahora el Dictamen lo pinta bajo *"Lo que Pálpito ajustó al leer el
-archivo"*. Con Argos salen cinco ajustes.
-
-### 6. La empresa cargada por archivo entra al desplegable
-
-`frontend/index.html`. Antes el selector quedaba **en blanco** y devolverse al
-caso del taller obligaba a volver a subir el PDF. Ahora entra con su nombre, en
-un grupo rotulado **"Cargados en esta sesión"** —que dice la verdad sin letra
-menuda—, y se puede ir y volver. **No se escribe en disco:** probar un PDF no
-puede tocar los tres casos del repositorio. Al recargar la página se pierde.
+**Y de la jornada anterior**, ya comprometido: la vista previa que mostraba el
+número de nota como saldo, el verde falso de Grupo Bolívar, unir años de varios
+archivos, y el botón de guardar.
 
 ---
 
@@ -136,9 +122,11 @@ para elegir.
 **La utilidad neta es la de operaciones continuadas**, y queda anotado con la
 cifra que se dejó fuera.
 
-**La empresa cargada vive solo en la sesión.** Oscar lo eligió entre tres
-opciones. La tercera —un botón *"Guardar este caso"*— sigue disponible el día que
-la pida.
+**La empresa cargada entra a la lista de la sesión, y AHORA además se puede
+guardar en disco** con el botón *"Guardar este caso"*, y borrar con *"Borrar"*.
+Se mantiene la separación que se decidió: **probar un PDF no ensucia la carpeta;
+guardar es un acto explícito**. Los tres casos del taller están protegidos en el
+servidor: no se pueden pisar ni borrar, ni pidiéndolo.
 
 **Se subió a GitHub**, después de dos días de commits solo locales. Oscar lo
 pidió cuando se le dijo que 1.113 líneas vivían en un solo disco duro. ⚠️ Esto
@@ -236,6 +224,20 @@ rango de páginas no es un detalle de rendimiento, **es un dato de entrada**.
 renglones como `"total pasivos corrientes pasivos no corrientes"`, donde las dos
 cosas conviven. Por eso el corte mira **de qué es el total**, con un `.*?`
 perezoso, no si la palabra "no" aparece por ahí.
+
+🔴 **El archivo trae los TRES estados, y los del flujo de efectivo se disfrazan.**
+"Compras de propiedades, planta y equipo" entraba como compras de mercancía y
+disparaba los días de inventario a 3.614. Los verbos delatan: *compras de*,
+*adiciones*, *adquisición*, *venta de*, *antes de cambios en*.
+*(`CRUCES-VISTOS.md §9`.)*
+
+🔴 **El diccionario elige por POSICIÓN, no por frase más larga.** El lector de PDF
+pega el encabezado siguiente al total anterior. Una etiqueta dice lo que dice por
+como **empieza**; lo de atrás es ruido.
+
+🔴 **Los plurales van explícitos en el diccionario.** Sin `"total pasivos
+corrientes"`, ese renglón empieza igual que `"total pasivos"` y se lo lleva el
+pasivo TOTAL, que es otra cifra.
 
 🔴 **`importacion.py` va sin tildes SOLO en las claves del diccionario.** Se
 comparan contra etiquetas ya normalizadas (el normalizador quita las tildes). Los
@@ -386,6 +388,11 @@ decirlo antes de que lo pregunten.
   pymes, así que el catálogo de 23 cuentas les queda bien.
 - **¿Arreglar el responsivo a 400px?** Cuatro secciones se desbordan. Para
   proyector no molesta.
+- **¿Se borran los dos casos sueltos de `casos/`?** Ver arriba. Uno duplica un
+  caso del taller.
+- **¿Qué empresa se lleva a la exposición?** Almacenes Éxito ya entra limpio y es
+  del tipo correcto (compra, guarda y vende). Grupo Bolívar y Grupo Argos salen
+  marcados como no confiables, con razón: son un banco y un holding.
 
 ---
 
@@ -396,8 +403,8 @@ palpito/
 ├── backend/motor/     modelos · validacion · indicadores · diagnostico
 │                      · salud · importacion · narrativa · proyectos
 │                      · benchmark · secciones
-├── backend/tests/     336 pruebas en 11 archivos
-├── backend/api.py     FastAPI: 17 rutas, calcula y sirve la interfaz
+├── backend/tests/     393 pruebas en 13 archivos
+├── backend/api.py     FastAPI: 20 rutas (guardar, borrar y fundir son nuevas)
 ├── frontend/          index.html, sin frameworks, 7 módulos
 ├── casos/             3 casos (ver arriba cuál no se toca)
 ├── docs/DESPLIEGUE.md guía para Dokploy
@@ -405,7 +412,7 @@ palpito/
 │                      §8 los 6 errores del material del curso
 ├── PRODUCT.md         qué es y para quién
 ├── DESIGN.md          el sistema visual, escrito desde lo construido
-├── CRUCES-VISTOS.md   7 cruces · §4 y §5 se cerraron hoy · §6 y §7 son de hoy
+├── CRUCES-VISTOS.md   10 cruces · §8 tiene 2 fuentes · §9 y §10, una
 └── .env               🔴 la clave (NO se sube a git)
 ```
 
@@ -414,7 +421,7 @@ palpito/
 ```bash
 cd palpito/backend
 uvicorn api:app --reload      # → http://localhost:8000
-python -m pytest -q           # deben pasar 336
+python -m pytest -q           # deben pasar 393
 ```
 
 ⚠️ Los servidores que levanta el asistente **mueren al cerrarse su sesión**. El

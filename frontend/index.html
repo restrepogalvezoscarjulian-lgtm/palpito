@@ -782,6 +782,7 @@
       <button id="btnImportar">Cargar archivo</button>
       <button id="btnEditor">Editar datos</button>
       <button id="btnGuardarCaso" style="display:none">Guardar este caso</button>
+      <button id="btnBorrarCaso" style="display:none">Borrar</button>
       <button class="primario" id="btnRecalcular" style="display:none">Recalcular</button>
       <div class="derecha">
         <label class="interruptor">
@@ -862,10 +863,35 @@ async function cargarListaCasos(){
 /* El botón de guardar solo aparece cuando hay algo que guardar: una empresa
    que llegó por archivo y todavía vive solo en esta pestaña. Para los casos del
    repositorio no tiene sentido, porque ya están en disco. */
+/* Los tres casos del taller son la evidencia de auditoría del proyecto: la
+   suite los verifica contra valores calculados a mano. El servidor los protege,
+   y aquí ni siquiera se ofrece el botón. */
+const CASOS_DEL_TALLER = ["comercial_andina", "andina_trienio", "andina_con_benchmark"];
+
 function actualizarBotonGuardar(){
+  const id = $("#selectorCaso").value;
+  const enSesion = casosCargados.has(id);
   const b = $("#btnGuardarCaso");
-  if(!b) return;
-  b.style.display = casosCargados.has($("#selectorCaso").value) ? "" : "none";
+  if(b) b.style.display = enSesion ? "" : "none";
+  const d = $("#btnBorrarCaso");
+  if(d) d.style.display = (enSesion || CASOS_DEL_TALLER.includes(id)) ? "none" : "";
+}
+
+async function borrarCasoActual(){
+  const id = $("#selectorCaso").value;
+  const nombre = $("#selectorCaso").selectedOptions[0]?.text || id;
+  if(!confirm(`¿Borrar «${nombre}» del disco?\n\nEsto no se puede deshacer. ` +
+              `El archivo del que salió no se toca.`)) return;
+  try{
+    const r = await fetch(`/api/casos/${encodeURIComponent(id)}`, {method:"DELETE"});
+    if(!r.ok){
+      const {detail} = await r.json().catch(() => ({detail:"Error del servidor"}));
+      return alert("No se pudo borrar: " + detail);
+    }
+    await cargarListaCasos();
+  }catch(e){
+    alert("No se pudo borrar: " + e.message);
+  }
 }
 
 async function guardarCasoActual(){
@@ -1269,7 +1295,7 @@ function pintarSoltar(mensaje){
       <b>Arrastre aquí el archivo, o búsquelo</b>
       Estados financieros de la empresa que quiere analizar.
       <div><button class="primario" id="btnElegir">Buscar archivo</button></div>
-      <input type="file" id="archivoOculto" accept=".xlsx,.xlsm,.csv,.txt,.pdf" hidden>
+      <input type="file" id="archivoOculto" accept=".xlsx,.xlsm,.csv,.txt,.pdf" multiple hidden>
       <div class="formatos">Excel (.xlsx) · CSV (.csv) · PDF (.pdf) · hasta 8 MB</div>
       <label class="paginas-pdf">
         <span>Páginas del PDF · opcional</span>
@@ -1287,7 +1313,7 @@ function conectarSoltar(){
   const zona = $("#zonaSoltar"), input = $("#archivoOculto");
   if(!zona) return;
   $("#btnElegir").addEventListener("click", () => input.click());
-  input.addEventListener("change", () => { if(input.files[0]) subir(input.files[0]); });
+  input.addEventListener("change", () => { if(input.files.length) encolar([...input.files]); });
   ["dragenter","dragover"].forEach(ev => zona.addEventListener(ev, e => {
     e.preventDefault(); zona.classList.add("encima");
   }));
@@ -1295,9 +1321,40 @@ function conectarSoltar(){
     e.preventDefault(); zona.classList.remove("encima");
   }));
   zona.addEventListener("drop", e => {
-    const f = e.dataTransfer.files[0];
-    if(f) subir(f);
+    const f = [...e.dataTransfer.files];
+    if(f.length) encolar(f);
   });
+}
+
+/* Cola de archivos pendientes. Se pueden escoger varios de una vez —el informe
+   de 2024 y el de 2025 de la misma empresa— y Pálpito los va pasando uno por
+   uno por la pantalla de revisión, que NO se salta: cada archivo se mira antes
+   de entrar. A partir del segundo, la casilla "Añadir estos años" viene marcada
+   sola, porque es lo que se pidió al escogerlos juntos. */
+let colaArchivos = [];
+let enTanda = false;   // se escogieron varios archivos de una vez
+/* Cuántos de la tanda ya pasaron por la revisión. Importa porque el PRIMERO no
+   se une a nada: se une lo que viene DESPUÉS de él. Marcar la casilla también
+   en el primero funde el archivo nuevo con el caso que estuviera en pantalla
+   —al abrir la app, el del taller—, y eso produce un caso con el nombre de una
+   empresa y las cifras de otra. Ya pasó una vez. */
+let posicionEnTanda = 0;
+
+function encolar(archivos){
+  colaArchivos = archivos.slice(1);
+  enTanda = archivos.length > 1;
+  posicionEnTanda = 0;
+  subir(archivos[0]);
+}
+
+function siguienteEnCola(){
+  if(!colaArchivos.length) return false;
+  const f = colaArchivos.shift();
+  posicionEnTanda++;
+  $("#importador").classList.add("abierto");
+  $("#btnImportar").textContent = "Ocultar carga";
+  subir(f);
+  return true;
 }
 
 async function subir(archivo){
@@ -1365,10 +1422,20 @@ function alinearConPeriodos(valores, n){
    la escalera que faltaba. */
 function bloqueAniadir(){
   if(!datosCaso || !(datosCaso.periodos || []).length) return "";
+  /* Si el usuario escogió varios archivos de una, viene marcada DEL SEGUNDO EN
+     ADELANTE: escogerlos juntos ES pedir que se unan entre ellos, no pedir que
+     el primero se pegue a lo que hubiera antes en pantalla. Igual se puede
+     marcar a mano si eso es justo lo que se quiere. */
+  const marcada = (enTanda && posicionEnTanda > 0) ? " checked" : "";
+  const n = colaArchivos.length;
+  const pendientes = n
+    ? `<div class="leyenda" style="margin:8px 0 0"><b>Qued${n > 1 ? "an" : "a"} ${n}
+       archivo${n > 1 ? "s" : ""} por revisar</b> después de este.</div>`
+    : "";
   return `
     <div class="tarjeta" style="margin-top:14px">
       <label style="display:flex;gap:9px;align-items:flex-start;cursor:pointer">
-        <input type="checkbox" id="impAniadir" style="margin-top:3px">
+        <input type="checkbox" id="impAniadir"${marcada} style="margin-top:3px">
         <span>
           <b>Añadir estos años a «${esc(datosCaso.empresa)}»</b>
           <div class="leyenda" style="margin:4px 0 0">
@@ -1379,6 +1446,7 @@ function bloqueAniadir(){
           </div>
         </span>
       </label>
+      ${pendientes}
     </div>`;
 }
 
@@ -1585,6 +1653,9 @@ async function usarImportado(){
 
   await analizar();
   pintarEditor();
+
+  // Si venían varios archivos, el siguiente entra solo por la misma revisión.
+  if(!siguienteEnCola()){ enTanda = false; posicionEnTanda = 0; }
 }
 
 /* 2 — puntaje de salud financiera
@@ -2941,6 +3012,7 @@ $("#btnRecalcular").addEventListener("click", async () => {
 });
 $("#selectorCaso").addEventListener("change", e => cargarCaso(e.target.value));
 $("#btnGuardarCaso").addEventListener("click", guardarCasoActual);
+$("#btnBorrarCaso").addEventListener("click", borrarCasoActual);
 
 (async () => {
   try{

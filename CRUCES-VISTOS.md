@@ -229,3 +229,98 @@ llevar tildes**. Iba sin ellas porque `importacion.py` va sin tildes a propósit
 —su diccionario se compara contra etiquetas normalizadas—, pero esa restricción
 aplica **solo a las claves**, no a la prosa. Hay dos pruebas que fijan las dos
 mitades: las claves sin tildes, los avisos con ellas.
+
+---
+
+## 8. Una página que HABLA de los estados puntúa como si los TUVIERA
+
+**Fuentes independientes: 2** (dos emisoras distintas, dos partes distintas del
+documento)
+
+- **Ecopetrol**, consolidado 2024: la **tabla de contenido** nombra los tres
+  estados en tres renglones seguidos. Disparaba todos los marcadores de título y
+  se llevaba el puntaje más alto del documento. *(Ya estaba cubierto con la
+  regla de los puntos suspensivos.)*
+- **Grupo Bolívar**, consolidado 2024 *(10-sep-2026)*: las **notas contables**
+  mencionan los estados por su nombre cada dos párrafos —"la ganancia se
+  reconoce en el estado de resultados", "se presenta en el estado de situación
+  financiera"—. Tres páginas seguidas de prosa sumaban **12 puntos** contra los
+  **4** del balance verdadero de la página 14.
+
+**Lo que las une:** las dos son páginas que **hablan** de los estados sin
+contener ninguno. El índice se reconocía por su forma; las notas no tienen forma
+propia, se ven como prosa cualquiera.
+
+**La regla que sale:** lo que distingue a la página que TIENE el estado no es el
+título —que cualquiera puede mencionar— sino los **renglones de saldo**: "total
+activos 289.387.918". Solo las páginas con renglones forman bloque. **Sumar
+prosa no hace un estado financiero.**
+
+⚠️ **Y hay una lección propia, más incómoda:** esa suma de páginas contiguas la
+introduje yo esa misma mañana para arreglar el caso de Grupo Argos. El arreglo de
+un documento rompió otro. Un cambio en el detector no se puede probar contra un
+solo informe.
+
+**Estado: comprobado en los dos.** Argos sigue dando 16-19 y Bolívar 2024 pasó de
+65-67 (notas) a 14-15 (los estados). Tres pruebas lo fijan.
+
+---
+
+## 9. Los tres estados viven en el mismo archivo, y sus renglones se disfrazan
+
+**Fuentes independientes: 1** (Almacenes Éxito, consolidado 2024)
+
+⚠️ **Una sola fuente: observación, no regla.**
+
+Un archivo de estados financieros trae el balance, el estado de resultados **y el
+flujo de efectivo**, uno detrás de otro. Los renglones del tercero se parecen a
+los del segundo lo bastante como para colarse:
+
+| Renglón del FLUJO DE EFECTIVO | Se coló como | Daño |
+|---|---|---|
+| "Resultado operacional **antes de cambios en el capital de trabajo**" | utilidad operacional | cifra ajena |
+| "**Compras de** propiedades, planta y equipo" (284.669) | compras de mercancía | **días de inventario: 3.614 en vez de 63** |
+
+El segundo es el venenoso. El motor prefiere `compras` sobre `costo_ventas`
+cuando existe, así que una línea de inversión secuestró la rotación de
+inventario y dio **diez años de mercancía en bodega** para un supermercado.
+
+**Lo que sugiere:** un renglón que cuenta lo que se COMPRÓ o se VENDIÓ durante el
+año es un movimiento de caja, no un saldo ni un resultado. Los verbos delatan:
+*compras de*, *adiciones*, *adquisición*, *venta de*, *antes de cambios en*.
+
+**Estado: comprobado a mano el 10-sep-2026** con el informe real. Los días de
+inventario de Éxito pasaron de 3.614 a 62,9.
+
+---
+
+## 10. Un error que no es un error entrena a no leer los errores
+
+**Fuentes independientes: 1** (el propio Pálpito)
+
+⚠️ **Una sola fuente, y es de casa.**
+
+La validación marcaba como **error** que "activo corriente + PPE" no sumara el
+activo total. En Almacenes Éxito faltaban así **7,8 billones** —crédito
+mercantil, intangibles, inversiones en asociadas, derechos de uso—, ninguno de
+los cuales cabe en el catálogo de 23 cuentas.
+
+O sea que un balance **perfectamente cuadrado** salía con semáforo rojo por una
+diferencia que es **normal en toda empresa mediana o grande**.
+
+**Lo que sugiere:** la asimetría importa. Que el total sea MAYOR que sus partes
+conocidas es lo esperado cuando el catálogo no cubre todo; que sea MENOR sí es
+imposible. Marcar las dos igual convierte una señal en ruido, y **un error que no
+es un error entrena a no leer los errores** — que es exactamente lo que Pálpito
+existe para evitar.
+
+**Estado: arreglado.** El caso "mayor" pasó a informativo con su explicación; el
+caso "menor" sigue siendo error. Éxito pasó de 10 errores a 0.
+
+⚠️ **Junto con §7 forman la misma enfermedad por los dos lados:** allá un campo
+que se escribía y nadie leía; aquí una alarma que sonaba sin que hubiera fuego.
+Y hay un tercer caso el mismo día: `pasivo_total` y `pasivo_no_corriente`
+existían en `modelos.py` desde siempre, pero **el importador no podía
+producirlas**, así que ningún balance real cuadraba jamás. Un campo legible que
+nadie puede escribir es tan inútil como uno escrito que nadie lee.
+**Las tres son del mismo código, así que cuentan como UNA fuente.**

@@ -34,6 +34,13 @@ CUENTAS_BALANCE = [
     "efectivo", "cuentas_por_cobrar", "inventarios", "activo_corriente",
     "propiedad_planta_equipo", "activo_total", "proveedores",
     "deuda_financiera_cp", "pasivo_corriente", "deuda_financiera_lp",
+    # El motor sabe usar estas dos desde siempre (ver modelos.pasivo_total),
+    # pero el importador no podia producirlas, asi que NINGUN balance real
+    # cuadraba. En el informe de Almacenes Exito 2024 el "Total pasivo"
+    # (9.539.043) estaba en el PDF sin asignar: sumado al patrimonio da
+    # 17.554.555, que es exactamente el activo total. Los diez errores de
+    # "el balance no cuadra" eran nuestros, no de la empresa.
+    "pasivo_no_corriente", "pasivo_total",
     "patrimonio",
 ]
 CUENTAS_RESULTADOS = [
@@ -59,7 +66,8 @@ SINONIMOS: dict[str, tuple[str, ...]] = {
                            "cartera clientes", "cartera", "clientes", "cxc"),
     "inventarios": ("inventarios", "inventario", "existencias", "mercancias",
                     "mercancia"),
-    "activo_corriente": ("total activo corriente", "activo corriente",
+    "activo_corriente": ("total activos corrientes", "total activo corriente",
+                         "total de activos corrientes", "activo corriente",
                          "activos corrientes", "total corriente activo"),
     "propiedad_planta_equipo": ("propiedad planta y equipo", "propiedades planta y equipo",
                                 "propiedad planta", "activos fijos", "activo fijo",
@@ -75,7 +83,11 @@ SINONIMOS: dict[str, tuple[str, ...]] = {
                             "obligaciones financieras cp", "deuda financiera corto plazo",
                             "deuda financiera cp", "creditos corto plazo",
                             "obligaciones bancarias corto plazo"),
-    "pasivo_corriente": ("total pasivo corriente", "pasivo corriente",
+    # Los plurales van explicitos y completos: sin "total pasivos corrientes",
+    # ese renglon empieza igual que "total pasivos" y se lo llevaba el pasivo
+    # TOTAL, que es otra cosa y otro numero.
+    "pasivo_corriente": ("total pasivos corrientes", "total pasivo corriente",
+                         "total de pasivos corrientes", "pasivo corriente",
                          "pasivos corrientes", "total corriente pasivo"),
     # OJO: "pasivo no corriente" NO va aqui. El total de pasivos no corrientes
     # incluye impuesto diferido, provisiones, beneficios a empleados y cuentas
@@ -87,10 +99,22 @@ SINONIMOS: dict[str, tuple[str, ...]] = {
                             "obligaciones financieras lp", "deuda financiera largo plazo",
                             "deuda financiera lp", "creditos largo plazo",
                             "obligaciones bancarias largo plazo"),
+    "pasivo_no_corriente": ("total pasivo no corriente", "total pasivos no corrientes",
+                            "pasivo no corriente", "pasivos no corrientes"),
+    "pasivo_total": ("total pasivo y patrimonio no", "total de pasivos",
+                     "total pasivos", "total pasivo", "pasivo total",
+                     "pasivos totales", "suma del pasivo"),
     "patrimonio": ("total patrimonio", "patrimonio neto", "patrimonio",
                    "capital contable"),
-    "ventas": ("ingresos operacionales", "ingresos por ventas", "ingresos de actividades",
-               "ventas netas", "ventas", "ingresos"),
+    # "ingresos de contratos con clientes" es como se llama la venta bajo la
+    # NIIF 15, y es el nombre que usan los emisores grandes. Sin el, en el
+    # informe de Exito 2024 los 21.880.509 de ventas se quedaban afuera y
+    # "ventas" terminaba tomando 60.481 de un renglon de derivados, solo porque
+    # decia "ingresos" en alguna parte.
+    "ventas": ("ingresos de contratos con clientes", "ingresos por contratos con clientes",
+               "ingresos de actividades ordinarias", "ingresos operacionales",
+               "ingresos por ventas", "ingresos de actividades",
+               "ventas netas", "ventas"),
     "costo_ventas": ("costo de ventas", "costo de la mercancia vendida",
                      "costo de mercancia vendida", "costos de ventas", "costo ventas"),
     "utilidad_bruta": ("utilidad bruta", "ganancia bruta", "margen bruto en pesos"),
@@ -317,6 +341,32 @@ def _es_saldo_de_balance(limpia: str) -> bool:
     return primera in PREFIJOS_DE_BALANCE or any(m in limpia for m in MARCAS_DE_BALANCE)
 
 
+# Palabras que descalifican a una cuenta concreta, aunque el sinonimo empate.
+#
+# "compras" en este catalogo significa compras de MERCANCIA, y solo existe para
+# afinar la rotacion de proveedores. En el informe de Almacenes Exito el motor
+# tomo "Compras de propiedades, planta y equipo" (284.669), que es una salida de
+# caja de inversion, y como el motor prefiere `compras` sobre `costo_ventas`
+# cuando existe, los dias de inventario salieron 3.614 -diez anos de mercancia
+# en bodega- en vez de 63.
+DESCALIFICAN = {
+    "compras": ("propiedad", "propiedades", "planta", "equipo", "intangible",
+                "intangibles", "inversion", "inversiones", "accion", "acciones",
+                "otros activos", "activos fijos", "subsidiaria", "subsidiarias",
+                "negocio", "negocios"),
+    # Un renglon que empieza contando lo que se COMPRO o se VENDIO en el ano es
+    # un movimiento de caja, no el saldo de la cuenta. "Compras de propiedades,
+    # planta y equipo" no es la PPE del balance: es lo que se gasto comprandola.
+    "propiedad_planta_equipo": ("compras", "compra", "adquisicion", "adquisiciones",
+                                "adiciones", "venta", "ventas", "retiros", "bajas"),
+}
+
+
+def _descalificada(cuenta: str, limpia: str) -> bool:
+    return any(re.search(r"\b" + re.escape(p) + r"\b", limpia)
+               for p in DESCALIFICAN.get(cuenta, ()))
+
+
 def _es_deuda_financiera(limpia: str) -> bool:
     if limpia.split(" ", 1)[0] in PREFIJOS_DE_ACTIVO or "por cobrar" in limpia:
         return False
@@ -346,13 +396,31 @@ def buscar_cuenta(etiqueta: str, no_corriente: bool = False):
         if limpia == frase:
             if de_balance and GRUPO[cuenta] == "resultados":
                 continue
+            if _descalificada(cuenta, limpia):
+                continue
             return cuenta, "alta"
+    # Gana la frase que aparece ANTES en la etiqueta, y ante empate la mas
+    # larga. Una etiqueta dice lo que dice por como empieza; lo que viene
+    # despues suele ser el encabezado de la seccion siguiente, que el lector de
+    # PDF pega al total anterior: "TOTAL PASIVOS CORRIENTES Pasivos no
+    # corrientes" trae el saldo del CORRIENTE, y quedarse con la frase mas larga
+    # -"pasivos no corrientes"- le cambiaba el significado al renglon.
+    mejor = None
     for frase, cuenta in FRASES:
         if de_balance and GRUPO[cuenta] == "resultados":
             continue
-        if re.search(r"\b" + re.escape(frase) + r"\b", limpia):
-            sobra = len(limpia) - len(frase)
-            return cuenta, "alta" if sobra <= 6 else "media"
+        if _descalificada(cuenta, limpia):
+            continue
+        hallado = re.search(r"\b" + re.escape(frase) + r"\b", limpia)
+        if not hallado:
+            continue
+        clave = (hallado.start(), -len(frase))
+        if mejor is None or clave < mejor[0]:
+            mejor = (clave, cuenta, frase)
+    if mejor is not None:
+        _, cuenta, frase = mejor
+        sobra = len(limpia) - len(frase)
+        return cuenta, "alta" if sobra <= 6 else "media"
     # Ultimo recurso: deuda que se llama igual a corto y a largo plazo. Solo
     # decide la posicion del renglon, y por eso va despues del diccionario, que
     # si trae los nombres explicitos ("obligaciones financieras largo plazo").
@@ -393,8 +461,21 @@ ACUMULABLES = ("deuda_financiera_cp", "deuda_financiera_lp")
 # - el "otro resultado integral" son revaluaciones y diferencias en cambio que
 #   no pasaron por el estado de resultados. Su renglon "OTRO RESULTADO
 #   INTEGRAL, NETO DE IMPUESTOS" entraba como el gasto de renta del periodo.
-NUNCA_SON_CUENTA = ("discontinuada", "discontinuadas", "discontinuas",
-                    "resultado integral", "resultados integrales")
+NUNCA_SON_CUENTA = (
+    "discontinuada", "discontinuadas", "discontinuas",
+    "resultado integral", "resultados integrales",
+    # Renglones del ESTADO DE FLUJO DE EFECTIVO. Cuando el archivo trae los
+    # tres estados seguidos -y casi siempre los trae- sus renglones se parecen
+    # a los del estado de resultados y se cuelan. En el informe de Almacenes
+    # Exito 2024, "Resultado operacional ANTES DE CAMBIOS EN EL CAPITAL DE
+    # TRABAJO" entraba como la utilidad operacional, y "Compras de otros
+    # activos" como las compras de mercancia. Son movimientos de caja, no
+    # resultados del periodo.
+    "antes de cambios en el capital",
+    "flujo de efectivo", "flujos de efectivo", "efectivo neto",
+    "actividades de operacion", "actividades de inversion",
+    "actividades de financiacion", "actividades de financiamiento",
+)
 
 # La utilidad neta que sirve para proyectar es la de operaciones continuadas.
 # Una etiqueta que lo dice explicitamente le gana a cualquier otra, incluso al
