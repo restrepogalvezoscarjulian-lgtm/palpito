@@ -174,7 +174,7 @@ def _regla_gastos_financieros(ef, ind, hor) -> Alerta | None:
         ),
         evidencia=[
             f"Gastos financieros: {_fmt(g)}%" + (f" (ventas solo {_fmt(v)}%)" if v is not None else ""),
-            f"Costo implicito de la deuda: {_fmt(ind['costo_deuda_implicito'].valores[-1])}%",
+            f"Costo implícito de la deuda: {_fmt(ind['costo_deuda_implicito'].valores[-1])}%",
         ],
         cuentas=["gastos_financieros", "deuda_financiera_cp", "deuda_financiera_lp"],
     )
@@ -270,7 +270,7 @@ def _regla_roic_vs_costo_deuda(ef, ind, hor) -> Alerta | None:
         ),
         evidencia=[
             f"ROIC: {_fmt(roic)}%",
-            f"Costo implicito de la deuda: {_fmt(kd)}%",
+            f"Costo implícito de la deuda: {_fmt(kd)}%",
             f"Diferencia: {_fmt(roic - kd)} puntos",
         ],
         cuentas=["utilidad_operacional", "deuda_financiera_cp", "deuda_financiera_lp"],

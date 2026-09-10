@@ -2748,7 +2748,10 @@ const MODULOS = [
     id: "proyecto",
     nombre: "Proyecto de inversión",
     resumen: "VPN, TIR, payback y flujo de caja a 12 meses",
-    arma: () => seccionProyecto() + seccionMensual(),
+    // seccionProyecto YA termina con seccionMensual: sumarla aquí pintaba el
+    // flujo a 12 meses DOS VECES, el segundo con la tabla en blanco debajo del
+    // resultado del primero.
+    arma: () => seccionProyecto(),
   },
 ];
 

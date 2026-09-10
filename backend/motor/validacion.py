@@ -314,7 +314,7 @@ def _catalogo_no_encaja(ef: EstadosFinancieros) -> list[Hallazgo]:
             codigo="CATALOGO_NO_ENCAJA",
             mensaje="El balance no separa lo corriente de lo no corriente.",
             detalle=("Asi presentan sus estados los bancos y las aseguradoras. Sin "
-                     "esa division no hay liquidez que medir, y la ecuacion "
+                     "esa división no hay liquidez que medir, y la ecuación "
                      "contable no se puede verificar. " + consejo),
         ))
     return salida

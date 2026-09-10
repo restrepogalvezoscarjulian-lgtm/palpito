@@ -83,6 +83,27 @@ class Proyecto:
 # ======================================================================= WACC
 
 
+def _num(v: float, dec: int = 1) -> str:
+    """Un numero como se escribe en Colombia: punto de miles, coma decimal.
+
+    Python formatea al reves -"1,705.8"-, asi que la tarjeta del VPN mostraba
+    "1.705,8" y el texto que iba justo debajo, "1,705.8". El mismo numero,
+    escrito de dos formas, a dos centimetros. Se cambia por un separador
+    provisional para no pisar lo ya sustituido.
+    """
+    return f"{v:,.{dec}f}".replace(",", "\x00").replace(".", ",").replace("\x00", ".")
+
+
+def _pct(v: float, dec: int = 1) -> str:
+    """Un porcentaje con coma decimal, como se escribe en Colombia.
+
+    El formato de Python trae punto, y en la MISMA tarjeta del punto de quiebre
+    convivian "12,1%" -del frontend- y "12.1%" -de aqui-. En una exposicion eso
+    se lee como descuido.
+    """
+    return f"{v:.{dec}f}".replace(".", ",")
+
+
 def calcular_wacc(
     patrimonio: float | None,
     deuda: float | None,
@@ -360,13 +381,13 @@ def flujo_caja_mensual(saldo_inicial: float, meses: list[dict]) -> dict:
         primero = meses_deficit[0]["mes"]
         lectura = (
             f"La caja se agota en {primero}. El faltante máximo del año es "
-            f"{faltante:,.1f}, que es el monto mínimo que habría que conseguir "
+            f"{_num(faltante)}, que es el monto mínimo que habría que conseguir "
             f"o diferir para sostener la operación."
         )
     else:
         lectura = (
             f"La caja nunca se agota. El punto más ajustado del año deja "
-            f"{saldo_minimo:,.1f} de saldo."
+            f"{_num(saldo_minimo)} de saldo."
         )
 
     return {
@@ -455,11 +476,11 @@ def punto_de_quiebre(proyecto: Proyecto) -> dict:
     if holgura >= 0:
         lectura = (
             f"El proyecto ya destruye valor: los flujos tendrian que subir "
-            f"{holgura * 100:.1f}% solo para empatar."
+            f"{_pct(holgura * 100)}% solo para empatar."
         )
     else:
         lectura = (
-            f"Los flujos pueden caer hasta {abs(holgura) * 100:.1f}% antes de "
+            f"Los flujos pueden caer hasta {_pct(abs(holgura) * 100)}% antes de "
             f"que el proyecto deje de crear valor."
         )
     return {
@@ -523,11 +544,11 @@ def _metricas(proyecto: Proyecto) -> list[Metrica]:
             criterio="Crea valor si VPN > 0",
             veredicto=_semaforo_vpn(vpn),
             lectura=(
-                f"El proyecto devuelve la inversión, paga el {tasa * 100:.1f}% "
-                f"exigido de costo de capital y agrega {vpn:,.1f} de valor."
+                f"El proyecto devuelve la inversión, paga el {_pct(tasa * 100)}% "
+                f"exigido de costo de capital y agrega {_num(vpn)} de valor."
                 if vpn > 0
-                else f"El proyecto no alcanza a cubrir el {tasa * 100:.1f}% "
-                f"exigido: destruye {abs(vpn):,.1f} de valor."
+                else f"El proyecto no alcanza a cubrir el {_pct(tasa * 100)}% "
+                f"exigido: destruye {_num(abs(vpn))} de valor."
             ),
             ayuda=(
                 "Cuánto valor en pesos de hoy agrega el proyecto después de "
@@ -546,8 +567,8 @@ def _metricas(proyecto: Proyecto) -> list[Metrica]:
             criterio="Se compara contra la inversión inicial",
             veredicto="favorable" if vp_flujos > abs(proyecto.inversion) else "desfavorable",
             lectura=(
-                f"Los flujos futuros valen hoy {vp_flujos:,.1f} frente a una "
-                f"inversión de {abs(proyecto.inversion):,.1f}."
+                f"Los flujos futuros valen hoy {_num(vp_flujos)} frente a una "
+                f"inversión de {_num(abs(proyecto.inversion))}."
             ),
             ayuda=(
                 "Lo que valen hoy todos los ingresos futuros del proyecto. Es "
@@ -563,11 +584,11 @@ def _metricas(proyecto: Proyecto) -> list[Metrica]:
             formula="Tasa que hace VPN = 0",
             insumos=["inversion", "flujos"],
             fuente=SESION6,
-            criterio=f"Se acepta si TIR > WACC ({tasa * 100:.1f}%)",
+            criterio=f"Se acepta si TIR > WACC ({_pct(tasa * 100)}%)",
             veredicto=veredicto_tasa(tir),
             lectura=(
-                f"El proyecto rinde {tir * 100:.2f}% anual frente a un costo de "
-                f"capital de {tasa * 100:.1f}%."
+                f"El proyecto rinde {_pct(tir * 100, 2)}% anual frente a un costo de "
+                f"capital de {_pct(tasa * 100)}%."
                 if tir is not None
                 else "No se puede calcular: los flujos no cambian de signo."
             ),
@@ -585,11 +606,11 @@ def _metricas(proyecto: Proyecto) -> list[Metrica]:
             formula="TIRM = (VF de los flujos positivos / VP de los negativos)^(1/n) - 1",
             insumos=["inversion", "flujos", "tasa_descuento"],
             fuente=SESION6,
-            criterio=f"Se acepta si TIRM > WACC ({tasa * 100:.1f}%)",
+            criterio=f"Se acepta si TIRM > WACC ({_pct(tasa * 100)}%)",
             veredicto=veredicto_tasa(tirm),
             lectura=(
-                f"Reinvirtiendo los flujos al {tasa * 100:.1f}% y no a la propia "
-                f"TIR, el proyecto rinde {tirm * 100:.2f}%."
+                f"Reinvirtiendo los flujos al {_pct(tasa * 100)}% y no a la propia "
+                f"TIR, el proyecto rinde {_pct(tirm * 100, 2)}%."
                 if tirm is not None
                 else "No se puede calcular con los flujos dados."
             ),
@@ -615,7 +636,7 @@ def _metricas(proyecto: Proyecto) -> list[Metrica]:
             ),
             veredicto=veredicto_payback(pb_simple),
             lectura=(
-                f"Sin descontar, la inversión se recupera en {pb_simple:.2f} años."
+                f"Sin descontar, la inversión se recupera en {_num(pb_simple, 2)} años."
                 if pb_simple is not None
                 else "La inversión no se recupera dentro del horizonte evaluado."
             ),
@@ -641,7 +662,7 @@ def _metricas(proyecto: Proyecto) -> list[Metrica]:
             veredicto=veredicto_payback(pb_desc),
             lectura=(
                 f"Descontando los flujos, la inversión se recupera en "
-                f"{pb_desc:.2f} años."
+                f"{_num(pb_desc, 2)} años."
                 if pb_desc is not None
                 else "La inversión no se recupera dentro del horizonte evaluado."
             ),
@@ -666,7 +687,7 @@ def _metricas(proyecto: Proyecto) -> list[Metrica]:
                 else "favorable" if ir > 1 else "limite" if ir == 1 else "desfavorable"
             ),
             lectura=(
-                f"Cada peso invertido genera {ir:.2f} pesos de valor presente."
+                f"Cada peso invertido genera {_num(ir, 2)} pesos de valor presente."
                 if ir is not None
                 else "No se puede calcular sin inversión inicial."
             ),

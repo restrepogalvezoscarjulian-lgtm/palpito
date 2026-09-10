@@ -285,7 +285,7 @@ def _endeudamiento(ef: EstadosFinancieros) -> list[Indicador]:
         ),
         Indicador(
             codigo="endeudamiento_activo_implicito",
-            nombre="Nivel de endeudamiento (pasivo implicito)",
+            nombre="Nivel de endeudamiento (pasivo implícito)",
             categoria="Endeudamiento",
             valores=_serie(ef, pct(lambda i: _div(pasivo_implicito(i), ef.valor("activo_total", i)))),
             unidad="%",
@@ -332,7 +332,7 @@ def _endeudamiento(ef: EstadosFinancieros) -> list[Indicador]:
         ),
         Indicador(
             codigo="costo_deuda_implicito",
-            nombre="Costo implicito de la deuda financiera",
+            nombre="Costo implícito de la deuda financiera",
             categoria="Endeudamiento",
             valores=_serie(ef, lambda i: (
                 None if i == 0 or ef.deuda_financiera(i) is None or ef.deuda_financiera(i - 1) is None
@@ -410,7 +410,7 @@ def _rentabilidad(ef: EstadosFinancieros) -> list[Indicador]:
             insumos=["utilidad_operacional", "activo_total"], fuente=CARTILLA,
             nota="Se usa la utilidad OPERACIONAL, no la neta, para medir el activo con "
                  "independencia de como este financiado. La cartilla del curso invierte "
-                 "esta division en su ejemplo (ver FÓRMULAS.md).",
+                 "esta división en su ejemplo (ver FÓRMULAS.md).",
         ),
         Indicador(
             codigo="roe", nombre="ROE (rentabilidad del patrimonio)", categoria="Rentabilidad",

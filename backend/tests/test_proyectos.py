@@ -398,3 +398,46 @@ def test_la_tabla_de_descuento_se_puede_auditar_renglon_a_renglon(caso_espiga):
     assert filas[0]["valor_presente"] == pytest.approx(-1500)
     assert filas[1]["valor_presente"] == pytest.approx(363.64, abs=0.01)
     assert filas[-1]["acumulado"] == pytest.approx(valor_presente_neto(caso_espiga))
+
+
+# ------------------------------------------------ el separador decimal
+#
+# En la tarjeta del punto de quiebre convivian "12,1%" -del frontend- y
+# "12.1%" -del motor-, uno debajo del otro. El formato de Python trae punto;
+# en Colombia la coma separa los decimales.
+
+
+def test_los_porcentajes_del_motor_llevan_coma_decimal():
+    from motor.proyectos import _pct
+    assert _pct(12.1) == "12,1"
+    assert _pct(15.62, 2) == "15,62"
+    assert "." not in _pct(1234.5)
+
+
+def test_ningun_texto_del_proyecto_mezcla_punto_y_coma():
+    """Barre la evaluacion entera buscando un decimal con punto."""
+    import re
+    from motor.proyectos import Proyecto, evaluar_proyecto
+
+    ev = evaluar_proyecto(Proyecto(nombre="Prueba", inversion=1500,
+                          flujos=[400, 500, 600, 700], tasa_descuento=0.10,
+                          plazo_exigido=3))
+
+    textos = []
+    def recoge(o):
+        if isinstance(o, dict):
+            for v in o.values(): recoge(v)
+        elif isinstance(o, list):
+            for v in o: recoge(v)
+        elif isinstance(o, str):
+            textos.append(o)
+    recoge(ev if isinstance(ev, dict) else ev.__dict__)
+
+    # Un punto seguido de EXACTAMENTE tres cifras es el separador de miles y
+    # esta bien ("1.705,8"). Uno seguido de una o dos es un decimal a la
+    # inglesa ("3.57"), que es lo que se busca.
+    malos = [t for t in textos if re.search(r"\d\.\d{1,2}(?!\d)", t)]
+    assert not malos, f"decimales con punto: {malos[:5]}"
+    # Y la coma de miles inglesa tampoco: "1,705.8"
+    ingleses = [t for t in textos if re.search(r"\d,\d{3}\.", t)]
+    assert not ingleses, f"formato ingles: {ingleses[:5]}"

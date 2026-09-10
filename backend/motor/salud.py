@@ -165,7 +165,7 @@ CRITERIOS: tuple[Criterio, ...] = (
                       "el negocio rinde menos de lo que cuesta la plata, destruye valor "
                       "aunque el estado de resultados muestre utilidades.",
         fuente=GARCIA,
-        derivado="ROIC - Costo implicito de la deuda financiera",
+        derivado="ROIC - Costo implícito de la deuda financiera",
     ),
 )
 
