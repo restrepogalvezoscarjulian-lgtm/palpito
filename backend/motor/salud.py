@@ -136,8 +136,8 @@ CRITERIOS: tuple[Criterio, ...] = (
     Criterio(
         codigo="margen_operacional", dimension="Rentabilidad", peso=35,
         escala=((-5, 0), (0, 25), (5, 55), (10, 78), (15, 92), (25, 100)),
-        justificacion="El margen del negocio en si, sin contar como esta financiado. Garcia "
-                      "lo considera el renglon más importante del estado de resultados: es "
+        justificacion="El margen del negocio en sí, sin contar cómo está financiado. García "
+                      "lo considera el renglón más importante del estado de resultados: es "
                       "el único que depende solo de la operación.",
         fuente=BAENA,
     ),
@@ -153,8 +153,8 @@ CRITERIOS: tuple[Criterio, ...] = (
         codigo="roe", dimension="Rentabilidad", peso=35,
         escala=((-5, 0), (0, 25), (8, 55), (15, 80), (25, 95), (40, 100)),
         justificacion="Lo que gana el socio por cada peso metido en la empresa. El piso de "
-                      "referencia es lo que ese mismo dinero rendiria sin riesgo; por debajo "
-                      "de ahí, el socio esta financiando un negocio que no lo compensa.",
+                      "referencia es lo que ese mismo dinero rendiría sin riesgo; por debajo "
+                      "de ahí, el socio está financiando un negocio que no lo compensa.",
         fuente=CARTILLA,
     ),
     Criterio(
@@ -370,7 +370,7 @@ def puntaje_salud(ef: EstadosFinancieros) -> dict:
         "confiable": luz != "rojo",
         "advertencia": (
             "Los estados financieros tienen inconsistencias sin resolver, así que este "
-            "puntaje se cálculo sobre datos que no cuadran. Sirve para ubicar el orden "
+            "puntaje se calculó sobre datos que no cuadran. Sirve para ubicar el orden "
             "de magnitud, no para decidir. Revise primero la sección de calidad de datos."
         ) if luz == "rojo" else "",
         "metodologia": {
@@ -382,7 +382,7 @@ def puntaje_salud(ef: EstadosFinancieros) -> dict:
                 "escala construida con los umbrales de la bibliografía del curso. La nota "
                 "de la dimensión es el promedio ponderado de sus indicadores, y el puntaje "
                 "final el promedio ponderado de las dimensiones. Los criterios sin datos "
-                "se excluyen y su peso se reparte entre los demas, en vez de contar cero."
+                "se excluyen y su peso se reparte entre los demás, en vez de contar cero."
             ),
             "renormalizacion": round(peso_vivo, 2) != 100.0,
         },

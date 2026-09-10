@@ -333,7 +333,7 @@ def test_diagnostico_detecta_las_alertas_centrales(ef):
     assert "costo de ventas crece más rápido" in titulos
     assert "cartera crece más rápido" in titulos
     assert "inventario crece más rápido" in titulos
-    assert "no genero caja suficiente" in titulos
+    assert "no generó caja suficiente" in titulos
 
 
 def test_alertas_quedan_numeradas_sin_saltos(ef):

@@ -121,14 +121,23 @@ SINONIMOS: dict[str, tuple[str, ...]] = {
     "gastos_operacionales": ("gastos de administracion y ventas", "gastos operacionales",
                              "gastos de operacion", "gastos administrativos y de ventas",
                              "gastos administracion y ventas"),
+    # "ganancia por actividades de operacion" es como titulan la utilidad
+    # operacional los estados publicados bajo NIIF -asi la llama Almacenes
+    # Exito-. Se parece al renglon del flujo de efectivo y no lo es: ver
+    # _es_renglon_de_flujo.
     "utilidad_operacional": ("utilidad operacional", "utilidad de operacion",
                              "resultado operacional", "ganancia operacional",
+                             "ganancia por actividades de operacion",
+                             "utilidad por actividades de operacion",
+                             "ganancia por actividades de la operacion",
                              "utilidad antes de intereses e impuestos", "uaii", "ebit"),
     "gastos_financieros": ("gastos financieros", "intereses pagados",
                            "costos financieros", "gasto por intereses", "intereses"),
     "utilidad_antes_impuestos": ("utilidad antes de impuestos", "utilidad antes de impuesto",
                                  "resultado antes de impuestos", "uai",
-                                 "ganancia antes de impuestos"),
+                                 "ganancia antes de impuestos",
+                                 "ganancia antes del impuesto",
+                                 "ganancia por operaciones continuadas antes del impuesto"),
     # "impuesto sobre las ganancias" es como lo titulan los estados publicados
     # bajo NIIF; "impuesto de renta" es el nombre de toda la vida.
     "impuestos": ("impuesto sobre las ganancias", "impuesto a las ganancias",
@@ -136,8 +145,16 @@ SINONIMOS: dict[str, tuple[str, ...]] = {
                   "impuesto sobre la renta", "impuesto a la renta",
                   "provision de impuestos", "gasto por impuestos",
                   "impuestos", "impuesto"),
+    # "ganancia del ano" -sin tilde y con n, porque normalizar() quita las dos-
+    # es el nombre del renglon de utilidad neta en los estados NIIF. El lector
+    # de PDF lo entrega tambien pegado al encabezado siguiente ("Ganancia del
+    # ano Ganancia por accion"), pero eso ya lo resuelve la regla de posicion:
+    # la etiqueta dice lo que dice por como empieza.
     "utilidad_neta": ("utilidad neta", "ganancia neta", "resultado del ejercicio",
-                      "resultado neto", "utilidad del ejercicio"),
+                      "resultado neto", "utilidad del ejercicio",
+                      "ganancia del ano", "utilidad del ano",
+                      "ganancia del periodo", "utilidad del periodo",
+                      "ganancia del ejercicio"),
     "depreciacion": ("depreciacion y amortizacion", "depreciacion", "amortizacion"),
     "compras": ("compras del periodo", "compras"),
     "ventas_credito": ("ventas a credito", "ventas credito"),
@@ -389,7 +406,7 @@ def buscar_cuenta(etiqueta: str, no_corriente: bool = False):
     limpia = normalizar(etiqueta)
     if not limpia or limpia in RUIDO:
         return None, ""
-    if any(m in limpia for m in NUNCA_SON_CUENTA):
+    if _es_renglon_de_flujo(limpia):
         return None, ""
     de_balance = _es_saldo_de_balance(limpia)
     for frase, cuenta in FRASES:
@@ -473,9 +490,37 @@ NUNCA_SON_CUENTA = (
     # resultados del periodo.
     "antes de cambios en el capital",
     "flujo de efectivo", "flujos de efectivo", "efectivo neto",
-    "actividades de operacion", "actividades de inversion",
-    "actividades de financiacion", "actividades de financiamiento",
 )
+
+# "actividades de operacion" NO puede ir en la lista de arriba, y costo el
+# hueco mas grande que ha tenido el proyecto.
+#
+# Bajo NIIF, la utilidad operacional de Almacenes Exito se llama "GANANCIA POR
+# ACTIVIDADES DE OPERACION". La guarda contra el flujo de efectivo la borraba
+# por contener esa frase, y con ella se caian el margen operacional, el margen
+# neto, el ROE, el ROIC y la cobertura de intereses: el 40% del puntaje de
+# salud aparecia como "sin datos" sin que nada fallara.
+#
+# Es la misma leccion del corte de los totales: importa DE QUE ES la etiqueta,
+# no si una frase aparece por ahi dentro. Un renglon que EMPIEZA por "ganancia"
+# o "utilidad" es un resultado del periodo aunque luego nombre las actividades
+# de operacion; el del flujo de caja empieza por otra cosa -"Efectivo neto de
+# actividades de operacion", "Flujos de efectivo de actividades de operacion"-
+# y esas dos ya quedan atrapadas arriba.
+ACTIVIDADES_DE_FLUJO = ("actividades de operacion", "actividades de inversion",
+                        "actividades de financiacion", "actividades de financiamiento")
+# Con que la etiqueta empiece por una de estas, es un resultado del periodo.
+EMPIEZAN_UN_RESULTADO = ("ganancia", "utilidad", "perdida", "resultado del",
+                         "resultados del", "beneficio")
+
+
+def _es_renglon_de_flujo(limpia: str) -> bool:
+    """Si esta etiqueta es un movimiento de caja disfrazado de resultado."""
+    if any(m in limpia for m in NUNCA_SON_CUENTA):
+        return True
+    if any(m in limpia for m in ACTIVIDADES_DE_FLUJO):
+        return not limpia.startswith(EMPIEZAN_UN_RESULTADO)
+    return False
 
 # La utilidad neta que sirve para proyectar es la de operaciones continuadas.
 # Una etiqueta que lo dice explicitamente le gana a cualquier otra, incluso al
@@ -851,44 +896,46 @@ def leer_pdf(contenido: bytes, tabla: Tabla, paginas: str = "") -> None:
 
     if pedidas is not None and deteccion is None:
         tabla.avisos.append(
-            f"Se leyeron unicamente las paginas pedidas ({len(pedidas)} de "
-            f"{total_paginas}). El resto del documento se ignoro.")
+            f"Se leyeron únicamente las páginas pedidas ({len(pedidas)} de "
+            f"{total_paginas}). El resto del documento se ignoró.")
 
     if paginas_por_tabla and paginas_por_texto:
         tabla.avisos.append(
-            f"Se leyeron {paginas_por_tabla} paginas como tabla y "
-            f"{paginas_por_texto} como texto suelto, segun lo que rescataba mas "
-            f"cifras en cada una. Compare cada renglon contra el documento "
+            f"Se {'leyó' if paginas_por_tabla == 1 else 'leyeron'} "
+            f"{paginas_por_tabla} "
+            f"{'página' if paginas_por_tabla == 1 else 'páginas'} como tabla y "
+            f"{paginas_por_texto} como texto suelto, según lo que rescataba más "
+            f"cifras en cada una. Compare cada renglón contra el documento "
             f"original antes de confirmar.")
     elif paginas_por_tabla:
         tabla.avisos.append(
             "Las cifras se reconstruyeron de las tablas del PDF. Un PDF no guarda "
-            "celdas, asi que compare cada renglon contra el documento original "
+            "celdas, así que compare cada renglón contra el documento original "
             "antes de confirmar.")
     else:
         tabla.avisos.append(
-            "El PDF no traia tablas reconocibles y se leyo como texto suelto, que "
-            "es la via mas fragil. Revise renglon por renglon.")
+            "El PDF no traía tablas reconocibles y se leyó como texto suelto, que "
+            "es la vía más frágil. Revise renglón por renglón.")
 
     if lineas_indice:
         tabla.avisos.append(
-            f"Se descartaron {lineas_indice} lineas de tabla de contenido. En un "
-            f"indice el numero de la derecha es una pagina, no un saldo.")
+            f"Se descartaron {lineas_indice} líneas de tabla de contenido. En un "
+            f"índice el número de la derecha es una página, no un saldo.")
 
     if paginas_imagen and deteccion is not None and deteccion.get("encontrado"):
         tabla.avisos.append(
-            "CUIDADO: el rango se eligio solo, pero este documento tiene paginas "
-            "escaneadas. Si los estados financieros son justamente esas paginas, "
-            "lo que se detecto es un anexo o una nota que se les parece. Abra el "
+            "CUIDADO: el rango se eligió solo, pero este documento tiene páginas "
+            "escaneadas. Si los estados financieros son justamente esas páginas, "
+            "lo que se detectó es un anexo o una nota que se les parece. Abra el "
             "PDF y confirme que lo leido es el balance y el estado de resultados "
             "de verdad.")
 
     if paginas_imagen:
         total = paginas_imagen + paginas_con_texto
         tabla.avisos.append(
-            f"ATENCION: {paginas_imagen} de {total} paginas son imagenes sin texto "
+            f"ATENCIÓN: {paginas_imagen} de {total} páginas son imágenes sin texto "
             f"y no se pudieron leer. En los informes anuales los estados firmados "
-            f"suelen ir escaneados, asi que es probable que lo que se alcanzo a "
+            f"suelen ir escaneados, así que es probable que lo que se alcanzó a "
             f"leer sean las notas y no los estados. Verifique que las cifras de "
             f"abajo salgan del balance y del estado de resultados; si no, "
             f"consiga el archivo en Excel o digite las cuentas a mano.")
@@ -963,8 +1010,8 @@ def importar(nombre: str, contenido: bytes, paginas: str = "") -> Tabla:
         columnas = max(len(f.valores) for f in tabla.filas)
         tabla.periodos = [f"Periodo {i + 1}" for i in range(columnas)]
         tabla.avisos.append(
-            "No se reconocieron los anos en los encabezados, asi que las columnas "
-            "quedaron como Periodo 1, 2... Renombrelas antes de analizar.")
+            "No se reconocieron los años en los encabezados, así que las columnas "
+            "quedaron como Periodo 1, 2... Renómbrelas antes de analizar.")
 
     mapear(tabla)
 
@@ -973,7 +1020,7 @@ def importar(nombre: str, contenido: bytes, paginas: str = "") -> Tabla:
         tabla.avisos.append(
             f"{len(sin_asignar)} de {len(tabla.filas)} filas no se reconocieron con "
             "el diccionario. Puede asignarlas a mano o pedirle una propuesta al "
-            "modelo, que igual tendra que confirmar.")
+            "modelo, que igual tendrá que confirmar.")
     return tabla
 
 

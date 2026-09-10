@@ -391,8 +391,8 @@ def _rentabilidad(ef: EstadosFinancieros) -> list[Indicador]:
             valores=_serie(ef, margen("utilidad_operacional")), unidad="%",
             formula="Utilidad operacional / Ventas", insumos=["utilidad_operacional", "ventas"],
             fuente=BAENA,
-            nota="El margen del negocio en si, sin contar como esta financiado. "
-                 "Garcia lo considera el renglon más importante del estado de resultados.",
+            nota="El margen del negocio en sí, sin contar cómo está financiado. "
+                 "García lo considera el renglón más importante del estado de resultados.",
         ),
         Indicador(
             codigo="margen_neto", nombre="Margen neto", categoria="Rentabilidad",
@@ -569,8 +569,8 @@ def puente_caja(ef: EstadosFinancieros) -> dict:
         "variacion_deuda_financiera": d_deuda,
         "es_aproximacion": not tiene_depreciacion,
         "advertencia": (
-            "Aproximación: no se informo la depreciación, por lo que no se puede "
-            "sumar al flujo de caja bruto ni separar el CAPEX de reposicion del de "
+            "Aproximación: no se informó la depreciación, por lo que no se puede "
+            "sumar al flujo de caja bruto ni separar el CAPEX de reposición del de "
             "crecimiento. El resultado subestima el flujo real."
         ) if not tiene_depreciacion else "",
         "formula": "FCL = UODI + Depreciación - Aumento KTNO - Inversión en activos fijos",

@@ -212,7 +212,7 @@ def test_sin_anios_en_el_encabezado_avisa_y_no_inventa():
     contenido = "Cuenta;Uno;Dos\nEfectivo;450;380\nVentas;9800;11200\n".encode("utf-8")
     tabla = importar("sin_anios.csv", contenido)
     assert tabla.periodos == ["Periodo 1", "Periodo 2"]
-    assert any("no se reconocieron los anos" in a.lower() for a in tabla.avisos)
+    assert any("no se reconocieron los años" in a.lower() for a in tabla.avisos)
 
 
 # ============================================ 4. DEL ARCHIVO AL MOTOR, ENTERO

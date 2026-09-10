@@ -212,7 +212,7 @@ def _regla_flujo_caja_negativo(ef, ind, hor) -> Alerta | None:
     u, k, a = p["uodi"], p["aumento_ktno"], p["aumento_activos_fijos_neto"]
     return Alerta(
         prioridad=1,
-        titulo="La operación no genero caja suficiente para financiarse sola",
+        titulo="La operación no generó caja suficiente para financiarse sola",
         explicacion=(
             "Esta es la respuesta a 'vendi más pero tengo menos plata'. La utilidad "
             "operativa después de impuestos no alcanzo a cubrir lo que se tragaron el "

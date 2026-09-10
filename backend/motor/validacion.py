@@ -19,10 +19,14 @@ def _cerca(a: float, b: float) -> bool:
 def validar(ef: EstadosFinancieros) -> list[Hallazgo]:
     """Corre todas las verificaciones y devuelve los hallazgos encontrados."""
     hallazgos: list[Hallazgo] = []
+    # Se decide UNA vez, sobre todos los periodos, y se le pasa al
+    # encadenamiento: si el catalogo no explica el activo, tampoco explica los
+    # renglones intermedios del estado de resultados.
+    catalogo_completo = _catalogo_cubre_el_activo(ef)
     for i, periodo in enumerate(ef.periodos):
         hallazgos += _ecuacion_contable(ef, i, periodo)
         hallazgos += _subtotales_balance(ef, i, periodo)
-        hallazgos += _encadenamiento_resultados(ef, i, periodo)
+        hallazgos += _encadenamiento_resultados(ef, i, periodo, catalogo_completo)
         hallazgos += _valores_imposibles(ef, i, periodo)
     hallazgos += _catalogo_no_encaja(ef)
     hallazgos += _datos_faltantes(ef)
@@ -135,42 +139,95 @@ def _subtotales_balance(ef: EstadosFinancieros, i: int, periodo: str) -> list[Ha
                     f"{periodo}: quedan {total - partes:,.0f} de activos fuera del "
                     f"detalle (activo corriente + PPE suman {partes:,.0f} de "
                     f"{total:,.0f})."),
-                detalle=("Es lo normal en una empresa grande: credito mercantil, "
+                detalle=("Es lo normal en una empresa grande: crédito mercantil, "
                          "intangibles, inversiones en asociadas y derechos de uso no "
-                         "caben en las 23 cuentas del catalogo. No invalida el "
-                         "analisis -liquidez, margenes, rotacion y rentabilidad no "
-                         "dependen de esas cuentas- pero el detalle del activo queda "
+                         "caben en las 23 cuentas del catálogo. No invalida el "
+                         "análisis —liquidez, márgenes, rotación y rentabilidad no "
+                         "dependen de esas cuentas— pero el detalle del activo queda "
                          "incompleto."),
             ))
     return salida
 
 
-def _encadenamiento_resultados(ef: EstadosFinancieros, i: int, periodo: str) -> list[Hallazgo]:
-    """Cada renglon del estado de resultados debe derivarse del anterior."""
+def _catalogo_cubre_el_activo(ef: EstadosFinancieros) -> bool:
+    """Si las 23 cuentas alcanzan a explicar el activo de esta empresa.
+
+    Cuando el activo corriente y la PPE no suman el activo total, la empresa
+    tiene partidas que el catalogo no contempla -credito mercantil, intangibles,
+    inversiones en asociadas, derechos de uso-. Eso no invalida el analisis,
+    pero SI cambia como hay que leer el encadenamiento del estado de
+    resultados: ver _encadenamiento_resultados.
+    """
+    for i in range(len(ef.periodos)):
+        total = ef.valor("activo_total", i)
+        corriente = ef.valor("activo_corriente", i)
+        ppe = ef.valor("propiedad_planta_equipo", i)
+        if None in (total, corriente, ppe):
+            continue
+        if not _cerca(corriente + ppe, total) and corriente + ppe < total:
+            return False
+    return True
+
+
+def _encadenamiento_resultados(ef: EstadosFinancieros, i: int, periodo: str,
+                               catalogo_completo: bool = True) -> list[Hallazgo]:
+    """Cada renglon del estado de resultados debe derivarse del anterior.
+
+    Dos eslabones admiten partidas intermedias que el catalogo no tiene, y por
+    eso se degradan a advertencia cuando ya sabemos que esta empresa no cabe en
+    las 23 cuentas:
+
+    - de la utilidad OPERACIONAL: un estado NIIF mete otros ingresos y gastos
+      operacionales entre la utilidad bruta y ella.
+    - de la utilidad ANTES DE IMPUESTOS: entre la operacional y ella van los
+      ingresos financieros, el metodo de participacion y "otras ganancias
+      netas". En Almacenes Exito 2024 son 96.464 que el motor no ve, y por eso
+      marcaba ERROR contra una empresa cuyos estados estan bien. Es el mismo
+      falso positivo que "actividades de operacion": una regla nuestra
+      acusando a la empresa de una limitacion nuestra.
+
+    Los otros dos eslabones -ventas menos costo, y antes de impuestos menos
+    impuestos- son aritmetica cerrada y siguen siendo ERROR siempre. Y en una
+    pyme, donde el catalogo SI cubre el activo, los cuatro son ERROR: ahi un
+    descuadre es un descuadre.
+    """
     salida: list[Hallazgo] = []
+    # (cuenta, suman, restan, etiqueta, admite partidas intermedias)
     cadena = [
-        ("utilidad_bruta", ["ventas"], ["costo_ventas"], "Utilidad bruta"),
-        ("utilidad_operacional", ["utilidad_bruta"], ["gastos_operacionales"], "Utilidad operacional"),
-        ("utilidad_antes_impuestos", ["utilidad_operacional"], ["gastos_financieros"], "Utilidad antes de impuestos"),
-        ("utilidad_neta", ["utilidad_antes_impuestos"], ["impuestos"], "Utilidad neta"),
+        ("utilidad_bruta", ["ventas"], ["costo_ventas"], "Utilidad bruta", False),
+        ("utilidad_operacional", ["utilidad_bruta"], ["gastos_operacionales"],
+         "Utilidad operacional", True),
+        ("utilidad_antes_impuestos", ["utilidad_operacional"], ["gastos_financieros"],
+         "Utilidad antes de impuestos", True),
+        ("utilidad_neta", ["utilidad_antes_impuestos"], ["impuestos"], "Utilidad neta", False),
     ]
-    for resultado, suman, restan, etiqueta in cadena:
+    for resultado, suman, restan, etiqueta, admite_intermedias in cadena:
         declarado = ef.valor(resultado, i)
         piezas = [ef.valor(c, i) for c in suman + restan]
         if declarado is None or any(v is None for v in piezas):
             continue
         calculado = sum(ef.valor(c, i) for c in suman) - sum(ef.valor(c, i) for c in restan)
-        if not _cerca(calculado, declarado):
-            salida.append(
-                Hallazgo(
-                    severidad="error",
-                    codigo="CADENA_RESULTADOS",
-                    mensaje=(
-                        f"{periodo}: {etiqueta} declarada {declarado:,.0f} pero el "
-                        f"encadenamiento da {calculado:,.0f}."
-                    ),
-                )
+        if _cerca(calculado, declarado):
+            continue
+        degradado = admite_intermedias and not catalogo_completo
+        salida.append(
+            Hallazgo(
+                severidad="advertencia" if degradado else "error",
+                codigo="CADENA_RESULTADOS",
+                mensaje=(
+                    f"{periodo}: {etiqueta} declarada {declarado:,.0f} pero el "
+                    f"encadenamiento da {calculado:,.0f}."
+                ),
+                detalle=(
+                    f"La diferencia son {abs(declarado - calculado):,.0f} de partidas "
+                    "que las 23 cuentas del catálogo no recogen —ingresos "
+                    "financieros, método de participación, otros ingresos y gastos—. "
+                    "Los estados de la empresa no están mal; el que se queda corto es "
+                    "el catálogo, que está pensado para una empresa que compra, "
+                    "guarda y vende."
+                ) if degradado else "",
             )
+        )
     return salida
 
 
@@ -277,7 +334,7 @@ def _datos_faltantes(ef: EstadosFinancieros) -> list[Hallazgo]:
                 Hallazgo(
                     severidad="info",
                     codigo="DATO_FALTANTE",
-                    mensaje=f"No se informo la cuenta: {cuenta}.",
+                    mensaje=f"No se informó la cuenta: {cuenta}.",
                     detalle="Afecta a: " + "; ".join(afectados) + ".",
                 )
             )

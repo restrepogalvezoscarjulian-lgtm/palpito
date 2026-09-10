@@ -525,3 +525,139 @@ def test_una_pyme_no_ve_avisos_que_no_le_incumben():
         {"cuenta": "utilidad_neta", "etiqueta": "Utilidad neta", "valores": [120]},
     ]})
     assert "supuestos" not in datos
+
+
+# ------------------------------------------------ la utilidad bajo NIIF
+#
+# El 10-sep-2026 el ensayo de la exposicion mostro a Almacenes Exito con
+# Rentabilidad y Generacion de valor en "sin datos": el 40% del puntaje de
+# salud sin evaluar, y nada habia fallado. Faltaban utilidad_operacional y
+# utilidad_neta, y las dos venian legibles en el PDF.
+#
+# La causa fue una guarda nuestra: para que los renglones del flujo de efectivo
+# no se disfrazaran de resultados se prohibio toda etiqueta que contuviera
+# "actividades de operacion" -y asi se llama, bajo NIIF, la utilidad
+# operacional-. Estas pruebas fijan LAS DOS MITADES: la que debe entrar y la
+# que debe seguir fuera. Sin la segunda, "arreglar" la primera reabre el hueco
+# de los dias de inventario en 3.614.
+
+
+@pytest.mark.parametrize("etiqueta,cuenta", [
+    ("Ganancia por actividades de operación", "utilidad_operacional"),
+    ("GANANCIA POR ACTIVIDADES DE OPERACION", "utilidad_operacional"),
+    ("Utilidad por actividades de operación", "utilidad_operacional"),
+    ("Ganancia del año", "utilidad_neta"),
+    ("Ganancia del periodo", "utilidad_neta"),
+    ("Utilidad del año", "utilidad_neta"),
+])
+def test_la_utilidad_niif_entra_aunque_nombre_las_actividades_de_operacion(etiqueta, cuenta):
+    """Un renglon que EMPIEZA por "ganancia" es un resultado del periodo."""
+    assert buscar_cuenta(etiqueta)[0] == cuenta
+
+
+@pytest.mark.parametrize("etiqueta", [
+    "Efectivo neto de actividades de operación",
+    "Flujos de efectivo netos de actividades de operación",
+    "Efectivo neto usado en actividades de inversión",
+    "Efectivo neto provisto por actividades de financiación",
+    "Resultado operacional antes de cambios en el capital de trabajo",
+])
+def test_el_flujo_de_efectivo_sigue_sin_pasar_por_resultado(etiqueta):
+    """La otra mitad: lo que la guarda existe para atajar."""
+    assert buscar_cuenta(etiqueta)[0] is None
+
+
+def test_la_ganancia_del_ano_gana_aunque_traiga_pegado_el_encabezado():
+    """El lector de PDF entrega "Ganancia del ano Ganancia por accion (*)".
+
+    Manda como EMPIEZA la etiqueta; lo de atras es el encabezado siguiente.
+    """
+    assert buscar_cuenta("Ganancia del año Ganancia por acción (*)")[0] == "utilidad_neta"
+    assert buscar_cuenta("Ganancia del año Ganancia atribuible a:")[0] == "utilidad_neta"
+
+
+def test_el_otro_resultado_integral_no_es_la_utilidad_del_ano():
+    """Revaluaciones que no pasaron por el estado de resultados."""
+    assert buscar_cuenta("Ganancia del año Otro resultado integral")[0] is None
+    assert buscar_cuenta("Resultado integral total")[0] is None
+
+
+def test_la_ganancia_antes_de_impuestos_no_se_confunde_con_la_operacional():
+    """Las dos empiezan por "ganancia por"; separan en la tercera palabra."""
+    antes = "Ganancia por operaciones continuadas antes del impuesto a las ganancias"
+    assert buscar_cuenta(antes)[0] == "utilidad_antes_impuestos"
+    assert buscar_cuenta("Ganancia por actividades de operación")[0] == "utilidad_operacional"
+
+
+# ------------------------------------------------ el encadenamiento y el catalogo
+#
+# Al entrar utilidad_antes_impuestos (10-sep-2026) aparecieron 3 ERRORES contra
+# Almacenes Exito y el dictamen paso a decir "Puntaje no confiable". Los
+# estados de Exito estan bien: entre la utilidad operacional y la de antes de
+# impuestos van ingresos financieros, metodo de participacion y otras ganancias
+# netas -96.464 en 2024- que las 23 cuentas no recogen.
+#
+# La regla que quedo: si el catalogo NO explica el activo, esos dos eslabones
+# son ADVERTENCIA; si SI lo explica -una pyme-, siguen siendo ERROR. Las dos
+# mitades van fijadas, porque degradar de mas seria tapar descuadres de verdad.
+
+
+def _ef(**cuentas):
+    """Un periodo, cifras sueltas. Cada cuenta viaja como lista de un valor."""
+    from motor.modelos import EstadosFinancieros
+    del_balance = ("activo_corriente", "propiedad_planta_equipo", "activo_total")
+    balance = {k: [v] for k, v in cuentas.items() if k in del_balance}
+    resultados = {k: [v] for k, v in cuentas.items() if k not in del_balance}
+    return EstadosFinancieros({"empresa": "Prueba", "periodos": ["2024"],
+                               "balance": balance, "resultados": resultados})
+
+
+def _cadena(hallazgos):
+    return [h for h in hallazgos if h.codigo == "CADENA_RESULTADOS"]
+
+
+def test_en_una_pyme_el_descuadre_de_la_cadena_sigue_siendo_error():
+    """El activo cuadra con el catalogo: aqui un descuadre es un descuadre."""
+    ef = _ef(activo_corriente=600, propiedad_planta_equipo=400, activo_total=1000,
+             utilidad_operacional=200, gastos_financieros=50,
+             utilidad_antes_impuestos=900)          # deberia dar 150
+    h = _cadena(validar(ef))
+    assert h, "no detecto el descuadre"
+    assert all(x.severidad == "error" for x in h), [x.severidad for x in h]
+
+
+def test_en_una_empresa_grande_el_mismo_descuadre_es_advertencia():
+    """Quedan activos fuera del detalle: el catalogo no explica esta empresa."""
+    ef = _ef(activo_corriente=600, propiedad_planta_equipo=400, activo_total=5000,
+             utilidad_operacional=200, gastos_financieros=50,
+             utilidad_antes_impuestos=900)
+    h = _cadena(validar(ef))
+    assert h, "no detecto el descuadre"
+    assert all(x.severidad == "advertencia" for x in h), [x.severidad for x in h]
+    assert "catálogo" in h[0].detalle, "no explico por que se degrado"
+    assert "750" in h[0].detalle, "no nombro la diferencia"
+
+
+def test_ventas_menos_costo_es_error_aunque_la_empresa_sea_grande():
+    """Ese eslabon no admite partidas intermedias: es aritmetica cerrada."""
+    ef = _ef(activo_corriente=600, propiedad_planta_equipo=400, activo_total=5000,
+             ventas=1000, costo_ventas=600, utilidad_bruta=900)   # deberia dar 400
+    h = _cadena(validar(ef))
+    assert h, "no detecto el descuadre"
+    assert h[0].severidad == "error", h[0].severidad
+
+
+def test_la_utilidad_neta_es_error_aunque_la_empresa_sea_grande():
+    """Antes de impuestos menos impuestos tampoco admite intermedias."""
+    ef = _ef(activo_corriente=600, propiedad_planta_equipo=400, activo_total=5000,
+             utilidad_antes_impuestos=500, impuestos=100, utilidad_neta=900)
+    h = _cadena(validar(ef))
+    assert h, "no detecto el descuadre"
+    assert h[0].severidad == "error", h[0].severidad
+
+
+def test_una_cadena_que_cuadra_no_reporta_nada():
+    ef = _ef(activo_corriente=600, propiedad_planta_equipo=400, activo_total=5000,
+             utilidad_operacional=200, gastos_financieros=50,
+             utilidad_antes_impuestos=150)
+    assert not _cadena(validar(ef))
