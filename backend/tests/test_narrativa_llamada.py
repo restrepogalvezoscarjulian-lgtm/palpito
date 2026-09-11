@@ -150,3 +150,56 @@ def test_una_pregunta_vacia_si_es_culpa_del_usuario(cliente, monkeypatch):
 
     r = cliente.post("/api/preguntar", json={"estados": ESTADOS, "pregunta": ""})
     assert r.status_code == 422
+
+
+# ------------------------------------------------- la respuesta que llega vacia
+#
+# Pasó el 11-sep con D1: el modelo se puso a "pensar" antes de responder, se
+# gastó los 700 tokens del límite en el razonamiento y la respuesta llegó con
+# content: null. La pantalla decía "'NoneType' object has no attribute 'strip'".
+
+
+def _post_que_devuelve(cuerpo, capturado=None):
+    class RespuestaFalsa:
+        status_code = 200
+        text = ""
+
+        @staticmethod
+        def json():
+            return cuerpo
+
+    def post_falso(url, **kwargs):
+        if capturado is not None:
+            capturado.update(kwargs.get("json") or {})
+        return RespuestaFalsa()
+    return post_falso
+
+
+def test_la_llamada_apaga_el_razonamiento_interno(monkeypatch):
+    """Aquí no hay nada que razonar: recibe números resueltos y los redacta."""
+    enviado = {}
+    monkeypatch.setattr(narrativa, "api_key", lambda: "clave-de-prueba")
+    monkeypatch.setattr(narrativa.httpx, "post",
+                        _post_que_devuelve({"choices": [{"message": {"content": "ok"}}]}, enviado))
+    narrativa._llamar([{"role": "user", "content": "hola"}])
+    assert enviado["reasoning"] == {"enabled": False}
+
+
+def test_una_respuesta_vacia_por_falta_de_espacio_se_explica(monkeypatch):
+    monkeypatch.setattr(narrativa, "api_key", lambda: "clave-de-prueba")
+    monkeypatch.setattr(narrativa.httpx, "post", _post_que_devuelve({
+        "choices": [{"finish_reason": "length",
+                     "message": {"content": None, "reasoning": "pensando..."}}]}))
+    with pytest.raises(RuntimeError) as e:
+        narrativa._llamar([{"role": "user", "content": "hola"}])
+    assert "NoneType" not in str(e.value)
+    assert "agotó" in str(e.value)
+
+
+def test_una_respuesta_vacia_sin_motivo_tambien_avisa_en_castellano(monkeypatch):
+    monkeypatch.setattr(narrativa, "api_key", lambda: "clave-de-prueba")
+    monkeypatch.setattr(narrativa.httpx, "post", _post_que_devuelve({
+        "choices": [{"finish_reason": "stop", "message": {"content": "   "}}]}))
+    with pytest.raises(RuntimeError) as e:
+        narrativa._llamar([{"role": "user", "content": "hola"}])
+    assert "vacía" in str(e.value)

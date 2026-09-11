@@ -197,6 +197,13 @@ def _llamar(mensajes: list[dict], max_tokens: int = 1200) -> str:
             "messages": mensajes,
             "temperature": 0.2,   # bajo: queremos consistencia, no creatividad
             "max_tokens": max_tokens,
+            # Sin razonamiento interno. El modelo a veces se ponia a "pensar"
+            # antes de responder y se gastaba los 700 tokens del limite en eso:
+            # la respuesta llegaba vacia (content: null, finish_reason: length)
+            # y la pantalla decia "'NoneType' object has no attribute 'strip'".
+            # Aqui no hay nada que razonar: recibe numeros ya resueltos y los
+            # traduce a prosa.
+            "reasoning": {"enabled": False},
         },
     )
     if respuesta.status_code != 200:
@@ -205,9 +212,17 @@ def _llamar(mensajes: list[dict], max_tokens: int = 1200) -> str:
         )
     datos = respuesta.json()
     try:
-        return datos["choices"][0]["message"]["content"].strip()
+        eleccion = datos["choices"][0]
+        contenido = eleccion["message"].get("content")
     except (KeyError, IndexError) as exc:
         raise RuntimeError(f"Respuesta inesperada de OpenRouter: {datos}") from exc
+    if not contenido or not contenido.strip():
+        if eleccion.get("finish_reason") == "length":
+            raise RuntimeError(
+                "El modelo agotó su espacio de respuesta antes de escribir nada. "
+                "Intente de nuevo o haga una pregunta más corta.")
+        raise RuntimeError("El modelo devolvió una respuesta vacía. Intente de nuevo.")
+    return contenido.strip()
 
 
 def narrar(analisis: dict) -> dict:
