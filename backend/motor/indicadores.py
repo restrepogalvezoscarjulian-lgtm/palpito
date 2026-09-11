@@ -345,6 +345,25 @@ def _endeudamiento(ef: EstadosFinancieros) -> list[Indicador]:
             nota="Tasa efectiva que la empresa esta pagando. Solo se puede calcular "
                  "desde el segundo periodo (necesita saldo inicial y final).",
         ),
+        Indicador(
+            codigo="gaf",
+            nombre="GAF (grado de apalancamiento financiero)",
+            categoria="Endeudamiento",
+            valores=_serie(ef, lambda i: (
+                lambda uaii, intereses: (
+                    None if uaii is None or intereses is None or uaii - intereses <= 0
+                    else uaii / (uaii - intereses))
+            )(ef.valor("utilidad_operacional", i), ef.valor("gastos_financieros", i))),
+            unidad="veces",
+            formula="UAII / (UAII - Intereses)",
+            insumos=["utilidad_operacional", "gastos_financieros"],
+            fuente=BAENA,
+            nota="Cuánto se amplifica la utilidad del socio por cada 1% que cambia la "
+                 "utilidad operativa. 1,0 es sin deuda; entre más alto, más se apalanca "
+                 "y más se expone. Sin dato si los intereses se comen toda la utilidad "
+                 "operativa. Se usa la fórmula estándar, no la de la cartilla con "
+                 "dividendos (ver FORMULAS.md §8.2).",
+        ),
     ]
 
 
@@ -370,6 +389,17 @@ def _rentabilidad(ef: EstadosFinancieros) -> list[Indicador]:
     def uodi(i):
         ebit, t = ef.valor("utilidad_operacional", i), tasa_impuestos(i)
         return None if None in (ebit, t) else ebit * (1 - t)
+
+    def capex(i):
+        """PPE final - PPE inicial + depreciación. Sin depreciación, solo el
+        cambio en PPE (inversión neta), que subestima el CAPEX real."""
+        if i == 0:
+            return None
+        ppe_fin, ppe_ini = ef.valor("propiedad_planta_equipo", i), ef.valor("propiedad_planta_equipo", i - 1)
+        if ppe_fin is None or ppe_ini is None:
+            return None
+        dep = ef.valor("depreciacion", i)
+        return ppe_fin - ppe_ini + (dep or 0)
 
     def capital_invertido(i):
         cxc, inv, prov = (ef.valor("cuentas_por_cobrar", i), ef.valor("inventarios", i),
@@ -482,6 +512,50 @@ def _rentabilidad(ef: EstadosFinancieros) -> list[Indicador]:
             nota="La utilidad que queda DESPUÉS de pagarle a todo el mundo, dueños "
                  "incluidos. Una empresa con utilidad contable positiva puede tener EVA "
                  "negativo: gana, pero menos de lo que exige el capital que usa.",
+        ),
+        Indicador(
+            codigo="ebitda", nombre="EBITDA", categoria="Rentabilidad",
+            valores=_serie(ef, lambda i: (
+                None if ef.valor("utilidad_operacional", i) is None or ef.valor("depreciacion", i) is None
+                else ef.valor("utilidad_operacional", i) + ef.valor("depreciacion", i))),
+            unidad="monto", formula="Utilidad operacional (EBIT) + Depreciación y amortización",
+            insumos=["utilidad_operacional", "depreciacion"], fuente=CARTILLA,
+            nota="La caja que produce la operación antes de pagarle al banco, al Estado "
+                 "y de reponer los activos. Requiere que el estado informe la "
+                 "depreciación; los estados por función de Supersociedades no la traen.",
+        ),
+        Indicador(
+            codigo="margen_ebitda", nombre="Margen EBITDA", categoria="Rentabilidad",
+            valores=_serie(ef, lambda i: (
+                lambda uo, dep, v: None if None in (uo, dep) else _div(uo + dep, v) and _div(uo + dep, v) * 100
+            )(ef.valor("utilidad_operacional", i), ef.valor("depreciacion", i), ef.valor("ventas", i))),
+            unidad="%", formula="EBITDA / Ventas",
+            insumos=["utilidad_operacional", "depreciacion", "ventas"], fuente=CARTILLA,
+            nota="Centavos de caja operativa por cada peso vendido. Es el margen que "
+                 "sirve para comparar empresas con distinta edad de sus activos.",
+        ),
+        Indicador(
+            codigo="capex", nombre="CAPEX (inversión en activos fijos)", categoria="Valor",
+            valores=_serie(ef, capex), unidad="monto",
+            formula="PPE final - PPE inicial + Depreciación del periodo",
+            insumos=["propiedad_planta_equipo", "depreciacion"], fuente=GARCIA,
+            nota="Lo que la empresa gastó en comprar o reponer activos fijos. Sale del "
+                 "balance, así que es una APROXIMACIÓN: no distingue una compra de una "
+                 "revaluación ni descuenta la venta de un activo. Sin depreciación "
+                 "informada se reporta solo la inversión NETA (el cambio en PPE), que "
+                 "subestima el CAPEX real. El primer periodo no tiene dato.",
+        ),
+        Indicador(
+            codigo="intensidad_capex", nombre="Intensidad de inversión (CAPEX / Ventas)",
+            categoria="Valor",
+            valores=_serie(ef, lambda i: (
+                lambda c, v: None if c is None else _div(c, v) and _div(c, v) * 100
+            )(capex(i), ef.valor("ventas", i))),
+            unidad="%", formula="CAPEX / Ventas",
+            insumos=["propiedad_planta_equipo", "depreciacion", "ventas"], fuente=GARCIA,
+            nota="Cuántos centavos de cada peso vendido se reinvierten en activos fijos. "
+                 "Alta en una empresa que está creciendo en tiendas o planta; cerca de "
+                 "cero en una que solo mantiene lo que tiene.",
         ),
     ]
 

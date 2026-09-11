@@ -113,7 +113,7 @@ de efectivo se comía la utilidad operacional**. *(`CRUCES-VISTOS.md §11`.)*
 ### 11-sep — el benchmark se construye solo
 
 **La idea:** no hacía falta un motor nuevo. Pálpito ya sabe convertir un balance
-en 28 indicadores; dándole las 29.362 sociedades que le reportan a la
+en 33 indicadores; dándole las 29.362 sociedades que le reportan a la
 Superintendencia, devuelve el benchmark del país. **La misma máquina que analiza
 una empresa construye la vara con la que se la mide.**
 

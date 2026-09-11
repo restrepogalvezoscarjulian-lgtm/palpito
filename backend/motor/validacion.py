@@ -323,7 +323,8 @@ def _catalogo_no_encaja(ef: EstadosFinancieros) -> list[Hallazgo]:
 def _datos_faltantes(ef: EstadosFinancieros) -> list[Hallazgo]:
     """Avisa que indicadores NO se van a poder calcular, y por que."""
     requisitos = {
-        "depreciacion": ["EBITDA", "Flujo de Caja Bruto", "Flujo de Caja Libre"],
+        "depreciacion": ["EBITDA", "Margen EBITDA", "Flujo de Caja Bruto", "Flujo de Caja Libre",
+                         "CAPEX exacto (se reporta solo la inversión neta en PPE)"],
         "compras": ["Rotación de proveedores exacta (se usa costo de ventas como aproximación)"],
         "ventas_credito": ["Rotación de cartera exacta (se usan las ventas totales)"],
     }

@@ -79,6 +79,12 @@ sección de calidad de datos. No se estima en silencio.
 | Multiplicador del patrimonio | `Activo total / Patrimonio` | Cartilla |
 | Cobertura de intereses | `UAII / Gastos financieros` | García |
 | Costo implícito de la deuda | `Gastos financieros / Deuda financiera promedio` | García |
+| **GAF** (grado de apalancamiento financiero) | `UAII / (UAII − Intereses)` | Baena |
+
+El GAF se calcula con la fórmula estándar y no con la de la cartilla, que mete
+los dividendos en el denominador y llega a un resultado que no cuadra con sus
+propios datos (§8.2). No se calcula cuando los intereses igualan o superan la
+utilidad operativa: dividir por cero o por negativo daría un número sin sentido.
 
 ### Por qué dos medidas de endeudamiento
 
@@ -114,6 +120,17 @@ año. Solo se puede calcular desde el segundo período.
 | **UODI** | `UAII × (1 − tasa de impuestos)` | Cartilla |
 | Capital invertido | `KTNO + Propiedad, planta y equipo` | García |
 | **ROIC** | `UODI / Capital invertido` | García |
+| **EBITDA** | `Utilidad operacional (UAII) + Depreciación y amortización` | Cartilla |
+| Margen EBITDA | `EBITDA / Ventas` | Cartilla |
+| **CAPEX** (aprox.) | `PPE final − PPE inicial + Depreciación del periodo` | García |
+| Intensidad de inversión | `CAPEX / Ventas` | García |
+
+**El CAPEX es una aproximación declarada.** Sale del balance, no del flujo de
+efectivo, así que no distingue una compra de una revaluación ni descuenta la
+venta de un activo. Si el estado no informa la depreciación se reporta solo el
+cambio en PPE —la inversión *neta*—, que subestima el CAPEX real, y la nota del
+indicador lo dice. Los estados por función que publica Supersociedades no traen
+la depreciación: para D1 y Ara el EBITDA sale "sin dato" y el CAPEX, neto.
 
 ### DuPont
 
@@ -540,7 +557,9 @@ agregarán cuando lleguen casos que los soporten:
 
 | Indicador | Dato faltante |
 |---|---|
-| EBITDA | Depreciación y amortización |
-| GAO / GAF / GAT | Costos fijos y variables separados, dividendos |
-| Punto de equilibrio | Precio unitario, costo variable unitario, costos fijos |
-| Flujo de caja libre exacto | Depreciación, CAPEX de reposición vs. crecimiento |
+| GAO y GAT | Costos fijos y variables separados. Un estado financiero no los trae; la salida honesta es una calculadora aparte donde se digiten, como la de proyectos. |
+| Punto de equilibrio | Precio unitario, costo variable unitario, costos fijos. Ídem. |
+| Flujo de caja libre exacto | CAPEX de reposición vs. crecimiento (el flujo de efectivo) |
+
+EBITDA, GAF y CAPEX se agregaron el 11-sep-2026 (§4 y §5); se calculan cuando
+el estado trae los insumos y se reportan "sin dato" cuando no.
