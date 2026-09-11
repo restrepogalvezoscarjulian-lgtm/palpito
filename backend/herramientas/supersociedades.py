@@ -65,8 +65,8 @@ DATASET_EMPRESAS = "6cat-2gcs"      # 10.000 empresas mas grandes: NIT -> CIIU
 DATASET_BALANCE = "pfdp-zks5"       # Estado de situacion financiera
 DATASET_RESULTADOS = "prwj-nzxa"    # Estado de resultado integral
 
-FUENTE = ("Superintendencia de Sociedades, via el portal de datos abiertos de "
-          "Colombia (datos.gov.co). Consulta publica.")
+FUENTE = ("Superintendencia de Sociedades, vía el portal de datos abiertos de "
+          "Colombia (datos.gov.co). Consulta pública.")
 
 # ---------------------------------------------------------------- diccionario
 #
@@ -175,8 +175,8 @@ class Referencia:
     empresas: int
 
     def como_dict(self) -> dict:
-        return {"p25": round(self.p25, 4), "mediana": round(self.mediana, 4),
-                "p75": round(self.p75, 4), "empresas": self.empresas}
+        return {"p25": round(self.p25, 2), "mediana": round(self.mediana, 2),
+                "p75": round(self.p75, 2), "empresas": self.empresas}
 
 
 @dataclass
@@ -199,7 +199,9 @@ class Sector:
             "descargado": date.today().isoformat(),
             "empresas_consultadas": self.empresas_consultadas,
             "empresas_usadas": self.empresas_usadas,
-            "benchmark": {c: r.mediana for c, r in self.referencias.items()},
+            # Redondeada: una referencia sectorial con siete decimales es
+            # ruido, y en la casilla del formulario no cabe.
+            "benchmark": {c: round(r.mediana, 2) for c, r in self.referencias.items()},
             "cuartiles": {c: r.como_dict() for c, r in self.referencias.items()},
         }
 

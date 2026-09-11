@@ -45,6 +45,11 @@ from motor.validacion import resumen, semaforo, validar
 
 RAIZ = Path(__file__).resolve().parents[1]
 CASOS = RAIZ / "casos"
+# Referencias sectoriales ya calculadas por herramientas/construir_benchmark.
+# La aplicacion solo LEE esta carpeta: nunca consulta internet. Reconstruir un
+# sector es un acto deliberado que se corre aparte, no algo que pase al abrir
+# una pantalla.
+REFERENCIAS = RAIZ / "referencias"
 FRONTEND = RAIZ / "frontend"
 
 # Carga el archivo .env si existe (sin dependencias externas)
@@ -437,6 +442,47 @@ class EntradaBenchmark(BaseModel):
 
     estados: "EntradaEstados"
     referencias: dict[str, float] = Field(default_factory=dict)
+
+
+def _sectores_en_disco() -> list[Path]:
+    return sorted(REFERENCIAS.glob("ciiu-*.json")) if REFERENCIAS.is_dir() else []
+
+
+@app.get("/api/sectores", tags=["analisis"])
+def sectores():
+    """Los sectores con referencias ya calculadas, para el desplegable.
+
+    Cada uno viaja con su procedencia -anio, cuantas empresas y de donde
+    salieron-, porque una referencia que no se puede sustentar ante quien
+    pregunte no sirve para comparar nada.
+    """
+    salida = []
+    for archivo in _sectores_en_disco():
+        try:
+            d = json.loads(archivo.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        salida.append({
+            "ciiu": d.get("ciiu", ""),
+            "nombre": d.get("nombre", ""),
+            "anio": d.get("anio"),
+            "empresas": d.get("empresas_usadas", 0),
+            "indicadores": len(d.get("benchmark", {})),
+        })
+    return salida
+
+
+@app.get("/api/sectores/{ciiu}", tags=["analisis"])
+def sector(ciiu: str):
+    """Las referencias de un sector: medianas, cuartiles y procedencia."""
+    limpio = "".join(c for c in ciiu if c.isalnum())
+    archivo = REFERENCIAS / f"ciiu-{limpio}.json"
+    if not archivo.is_file():
+        raise HTTPException(404, f"No hay referencias para el CIIU {ciiu}.")
+    try:
+        return json.loads(archivo.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise HTTPException(500, f"El archivo del sector no se pudo leer: {exc}") from exc
 
 
 @app.post("/api/benchmark", tags=["analisis"])

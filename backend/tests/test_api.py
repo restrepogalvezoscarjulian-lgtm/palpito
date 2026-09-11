@@ -396,3 +396,61 @@ def test_borrar_no_puede_salirse_de_la_carpeta(cliente, id_malo, limpiar_guardad
     assert r.status_code >= 400, f"{id_malo} devolvio {r.status_code}"
     assert testigo.exists(), f"{id_malo} borro algo que no debia"
     assert list(api.CASOS.iterdir()), "se vacio la carpeta"
+
+
+# ------------------------------------------------ sectores ya calculados
+#
+# La aplicacion LEE las referencias del disco y nunca consulta internet, ni al
+# abrir la pantalla ni el dia de una exposicion. Reconstruir un sector es un
+# acto deliberado que se corre aparte con herramientas/construir_benchmark.
+
+
+def test_la_lista_de_sectores_trae_su_procedencia(cliente):
+    r = cliente.get("/api/sectores")
+    assert r.status_code == 200
+    lista = r.json()
+    assert isinstance(lista, list)
+    if not lista:
+        return                      # todavia no se ha construido ningun sector
+    s = lista[0]
+    for campo in ("ciiu", "nombre", "anio", "empresas", "indicadores"):
+        assert campo in s, campo
+
+
+def test_un_sector_devuelve_medianas_y_cuartiles(cliente):
+    lista = cliente.get("/api/sectores").json()
+    if not lista:
+        return
+    ciiu = lista[0]["ciiu"]
+    d = cliente.get(f"/api/sectores/{ciiu}").json()
+    assert d["benchmark"], "sin medianas"
+    assert d["cuartiles"], "sin cuartiles"
+    assert "Superintendencia" in d["fuente"]
+    assert d["anio"] and d["empresas_usadas"]
+    un_codigo = next(iter(d["benchmark"]))
+    q = d["cuartiles"][un_codigo]
+    assert q["p25"] <= q["mediana"] <= q["p75"], q
+
+
+def test_un_sector_que_no_existe_responde_404(cliente):
+    assert cliente.get("/api/sectores/0000").status_code == 404
+
+
+def test_el_ciiu_no_puede_salirse_de_la_carpeta_de_referencias(cliente):
+    """Un CIIU es un numero: todo lo demas se descarta antes de abrir nada."""
+    for intento in ("../../.env", "..%2F..%2F.env", "....//....//.env"):
+        r = cliente.get(f"/api/sectores/{intento}")
+        assert r.status_code in (404, 400), (intento, r.status_code)
+
+
+def test_las_referencias_del_sector_sirven_para_comparar(cliente, datos):
+    """De punta a punta: lo que da /api/sectores entra en /api/benchmark."""
+    lista = cliente.get("/api/sectores").json()
+    if not lista:
+        return
+    refs = cliente.get(f"/api/sectores/{lista[0]['ciiu']}").json()["benchmark"]
+    r = cliente.post("/api/benchmark", json={"estados": datos, "referencias": refs})
+    assert r.status_code == 200
+    comparadas = [c for c in r.json()["comparaciones"]
+                  if c["veredicto"] != "sin_referencia"]
+    assert comparadas, "no comparo ningun indicador contra el sector"

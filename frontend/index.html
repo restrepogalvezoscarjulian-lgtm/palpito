@@ -2862,19 +2862,24 @@ function seccionBenchmark(a){
 
     <div class="aviso-fuente">
       <b>De dónde salen estas cifras.</b> No se pueden deducir de los estados
-      financieros de la empresa. En Colombia se construyen con lo que las
-      empresas le reportan a la <b>Superintendencia de Sociedades</b>, o con los
-      informes del gremio del sector. Anote la fuente que use para poder
-      sustentarla ante quien pregunte.
+      financieros de la empresa. Escoja abajo una industria y Pálpito carga la
+      <b>mediana de ese sector</b>, calculada con los estados que las empresas
+      le reportan a la <b>Superintendencia de Sociedades</b>. También puede
+      digitarlas a mano; en ese caso anote la fuente para poder sustentarla.
     </div>
 
     <div class="bench-cabeza">
-      <div class="bench-marcador" id="benchMarcador"></div>
-      <div class="bench-acciones">
+      <div class="bench-acciones" style="flex-wrap:wrap;gap:8px">
+        <label style="display:flex;align-items:center;gap:7px">
+          <span class="apagado">Industria</span>
+          <select id="benchSector"><option value="">— sin referencias —</option></select>
+        </label>
         <input type="text" id="benchFuente" placeholder="Fuente de las referencias"
           value="${esc(referencias.__fuente || "")}">
         <button id="btnLimpiarBench">Borrar referencias</button>
       </div>
+      <div class="leyenda" id="benchProcedencia" style="margin:8px 0 0"></div>
+      <div class="bench-marcador" id="benchMarcador" style="margin-top:10px"></div>
     </div>
     ${bloques}
   </section>`;
@@ -2951,8 +2956,70 @@ async function recalcularBenchmark(){
   }catch(e){ /* sin red: la tabla queda con lo ultimo calculado */ }
 }
 
+/* Las referencias del sector ya vienen calculadas en disco
+   (referencias/ciiu-XXXX.json, construidas por herramientas/construir_benchmark).
+   La aplicación solo las LEE: nunca consulta internet, ni al abrir esta
+   pantalla ni el día de una exposición. Reconstruir un sector es un acto
+   deliberado que se corre aparte. */
+let sectorCargado = null;   // el sector completo, no solo su código
+
+async function llenarSectores(){
+  const sel = $("#benchSector");
+  if(!sel) return;
+  try{
+    const lista = await (await fetch("/api/sectores")).json();
+    if(!lista.length){
+      $("#benchProcedencia").innerHTML =
+        `<span class="apagado">No hay sectores calculados todavía. Se construyen con
+         <code>python -m herramientas.construir_benchmark &lt;CIIU&gt; &lt;año&gt;</code>.</span>`;
+      return;
+    }
+    sel.innerHTML = `<option value="">— sin referencias —</option>` +
+      lista.map(s => `<option value="${esc(s.ciiu)}">CIIU ${esc(s.ciiu)} · ${esc(s.nombre || "sector")}</option>`).join("");
+    if(sectorCargado) sel.value = sectorCargado.ciiu;
+  }catch(e){ /* sin servidor: el desplegable queda vacío y se digita a mano */ }
+}
+
+/* Se repinta al conectar la sección porque cargar un sector la vuelve a
+   dibujar entera, y si no, el texto de procedencia se perdería justo después
+   de escribirlo. */
+function pintarProcedencia(){
+  const proc = $("#benchProcedencia");
+  if(!proc || !sectorCargado) return;
+  const s = sectorCargado;
+  proc.innerHTML =
+    `Mediana de <b>${s.empresas_usadas} empresas</b> del CIIU ${esc(s.ciiu)},
+     corte <b>${s.anio}</b>. Fuente: Superintendencia de Sociedades, vía
+     datos.gov.co (descargado el ${esc(s.descargado || "")}).`;
+}
+
+async function cargarSector(ciiu){
+  if(!ciiu){
+    sectorCargado = null;
+    const proc = $("#benchProcedencia");
+    if(proc) proc.innerHTML = "";
+    return;
+  }
+  try{
+    const r = await fetch(`/api/sectores/${encodeURIComponent(ciiu)}`);
+    if(!r.ok) return;
+    const s = await r.json();
+    sectorCargado = s;
+    /* Se adopta la MEDIANA, no el promedio: en datos financieros siempre hay
+       una empresa que vendió un activo, y un promedio no sobrevive a eso. */
+    Object.entries(s.benchmark || {}).forEach(([cod, v]) => { referencias[cod] = v; });
+    referencias.__fuente = `${s.fuente} CIIU ${s.ciiu}, corte ${s.anio}, ` +
+                           `${s.empresas_usadas} empresas.`;
+    guardarReferencias();
+    irA("benchmark");     // se repinta la tabla con las referencias puestas
+  }catch(e){ /* sin red: se queda lo que hubiera */ }
+}
+
 function conectarBenchmark(){
   if(!$("#secBenchmark")) return;
+  llenarSectores();
+  pintarProcedencia();
+  $("#benchSector")?.addEventListener("change", e => cargarSector(e.target.value));
   // Las referencias que trae el caso se adoptan como punto de partida
   // editable: si no, se verian en la tabla pero no se podrian cambiar.
   (analisis.benchmark?.comparaciones || []).forEach(c => {
@@ -2982,6 +3049,14 @@ function conectarBenchmark(){
 
   $("#btnLimpiarBench").addEventListener("click", () => {
     referencias = {};
+    sectorCargado = null;   // si no, el desplegable seguiría señalando un sector
+    /* Y hay que botar TAMBIÉN el último benchmark calculado. Al repintar, la
+       sección readopta como punto de partida las referencias que traiga
+       `analisis.benchmark`, así que sin esto el botón borraba las casillas y
+       el repintado las volvía a llenar con las mismas cifras. Se notaba poco
+       cuando las referencias se digitaban de a una; con un sector entero
+       cargado de golpe, el botón parecía sencillamente no servir. */
+    analisis.benchmark = null;
     guardarReferencias();
     irA("benchmark");
   });
