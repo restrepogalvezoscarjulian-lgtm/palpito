@@ -1,0 +1,125 @@
+{
+  "ciiu": "4711.00",
+  "nombre": "Comercio al por menor con surtido de alimentos",
+  "anio": 2024,
+  "fuente": "Superintendencia de Sociedades, via el portal de datos abiertos de Colombia (datos.gov.co). Consulta publica.",
+  "descargado": "2026-09-11",
+  "empresas_consultadas": 155,
+  "empresas_usadas": 155,
+  "benchmark": {
+    "razon_corriente": 1.293226132594667,
+    "prueba_acida": 0.5761069504812677,
+    "razon_efectivo": 0.16285403422815578,
+    "dias_cartera": 9.616329253817613,
+    "dias_inventario": 35.728003377589005,
+    "dias_proveedores": 37.04703189790428,
+    "ciclo_conversion_efectivo": 9.182867611923154,
+    "pkt": 2.2641586860853575,
+    "rotacion_activos": 3.8001165017047267,
+    "endeudamiento_activo": 61.60995814287896,
+    "multiplicador_patrimonio": 2.535516826302689,
+    "margen_bruto": 16.205088729287617,
+    "margen_operacional": 2.523146149950319,
+    "margen_neto": 1.0676633448641248,
+    "roa": 10.047623071695623,
+    "roe": 12.2229423193454
+  },
+  "cuartiles": {
+    "razon_corriente": {
+      "p25": 1.0137,
+      "mediana": 1.2932,
+      "p75": 1.8563,
+      "empresas": 155
+    },
+    "prueba_acida": {
+      "p25": 0.3536,
+      "mediana": 0.5761,
+      "p75": 0.903,
+      "empresas": 154
+    },
+    "razon_efectivo": {
+      "p25": 0.0833,
+      "mediana": 0.1629,
+      "p75": 0.2993,
+      "empresas": 155
+    },
+    "dias_cartera": {
+      "p25": 3.0417,
+      "mediana": 9.6163,
+      "p75": 19.6457,
+      "empresas": 155
+    },
+    "dias_inventario": {
+      "p25": 23.8241,
+      "mediana": 35.728,
+      "p75": 48.8752,
+      "empresas": 154
+    },
+    "dias_proveedores": {
+      "p25": 23.6648,
+      "mediana": 37.047,
+      "p75": 57.8373,
+      "empresas": 155
+    },
+    "ciclo_conversion_efectivo": {
+      "p25": -6.3617,
+      "mediana": 9.1829,
+      "p75": 21.0432,
+      "empresas": 154
+    },
+    "pkt": {
+      "p25": -0.9528,
+      "mediana": 2.2642,
+      "p75": 5.4781,
+      "empresas": 154
+    },
+    "rotacion_activos": {
+      "p25": 2.6069,
+      "mediana": 3.8001,
+      "p75": 5.0251,
+      "empresas": 155
+    },
+    "endeudamiento_activo": {
+      "p25": 44.7678,
+      "mediana": 61.61,
+      "p75": 77.259,
+      "empresas": 155
+    },
+    "multiplicador_patrimonio": {
+      "p25": 1.7595,
+      "mediana": 2.5355,
+      "p75": 4.2018,
+      "empresas": 155
+    },
+    "margen_bruto": {
+      "p25": 13.2595,
+      "mediana": 16.2051,
+      "p75": 19.231,
+      "empresas": 155
+    },
+    "margen_operacional": {
+      "p25": 1.4088,
+      "mediana": 2.5231,
+      "p75": 3.7451,
+      "empresas": 155
+    },
+    "margen_neto": {
+      "p25": 0.4295,
+      "mediana": 1.0677,
+      "p75": 1.7734,
+      "empresas": 155
+    },
+    "roa": {
+      "p25": 5.0078,
+      "mediana": 10.0476,
+      "p75": 14.3789,
+      "empresas": 155
+    },
+    "roe": {
+      "p25": 4.7769,
+      "mediana": 12.2229,
+      "p75": 20.3379,
+      "empresas": 155
+    }
+  }
+}
