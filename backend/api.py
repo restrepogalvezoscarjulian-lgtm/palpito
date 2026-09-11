@@ -41,6 +41,7 @@ from motor.proyectos import (
     flujo_caja_mensual,
 )
 from motor.salud import puntaje_salud
+from motor import operativo
 from motor.validacion import resumen, semaforo, validar
 from herramientas import supersociedades
 
@@ -558,6 +559,47 @@ def cargar_por_nit(entrada: EntradaNit):
         raise HTTPException(422, str(exc)) from exc
     except Exception as exc:
         raise _sin_portal(exc) from exc
+
+
+# ------------------------------------ punto de equilibrio y apalancamientos
+#
+# Indicadores del modulo 2 que NO salen de un estado financiero: necesitan
+# separar costos fijos de variables. Se digitan, como en la calculadora de
+# proyectos, en vez de inventarse desde las 23 cuentas.
+
+
+class EntradaEquilibrio(BaseModel):
+    precio: float
+    costo_variable_unitario: float
+    costos_fijos: float
+    unidades_programadas: float | None = None
+
+
+class EntradaApalancamiento(BaseModel):
+    ventas: float
+    costos_variables: float
+    costos_fijos: float
+    intereses: float = 0.0
+    tasa_impuestos: float | None = None      # fraccion: 0.30, no 30
+    dividendos_preferentes: float = 0.0
+
+
+@app.post("/api/operativo/equilibrio", tags=["operativo"])
+def equilibrio(entrada: EntradaEquilibrio):
+    """Punto de equilibrio en unidades y en pesos, con margen de seguridad."""
+    try:
+        return operativo.punto_equilibrio(**entrada.model_dump())
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+@app.post("/api/operativo/apalancamiento", tags=["operativo"])
+def apalancamientos(entrada: EntradaApalancamiento):
+    """GAO, GAF y GAT desde un estado de resultados por costeo variable."""
+    try:
+        return operativo.apalancamiento(**entrada.model_dump())
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
 
 
 # ------------------------------------------------- evaluacion de proyectos

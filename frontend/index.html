@@ -564,6 +564,16 @@
   .pro-met .m-crit{font-size:var(--t-micro);color:var(--tenue);margin-top:7px;
     font-family:var(--mono)}
 
+  /* Equilibrio y apalancamiento: dos calculadoras con datos digitados. */
+  .op-lectura{border-left:2px solid var(--aguja);padding:10px 14px;margin:6px 0 18px;
+    color:var(--suave);line-height:1.6;font-size:var(--t-cuerpo)}
+  .op-formula{font-family:var(--mono);font-size:var(--t-micro);color:var(--oro);
+    margin-top:6px}
+  table.op-er td.num{font-family:var(--mono);text-align:right}
+  table.op-er tr.total td{font-weight:650;border-top:1px solid var(--borde)}
+  .op-nota{font-size:var(--t-mini);color:var(--tenue);line-height:1.55;margin-top:12px;
+    max-width:78ch}
+
   .pro-lectura{color:var(--suave);font-size:var(--t-pie);margin:0 0 6px;max-width:74ch}
 
   .escenarios{display:grid;grid-template-columns:repeat(auto-fit,minmax(178px,1fr));
@@ -1029,6 +1039,7 @@ function imprimir(){
     if(moduloActivo === "dictamen")  conectarIA();
     if(moduloActivo === "proyecto"){ conectarProyecto(); conectarMensual(); }
     if(moduloActivo === "benchmark") conectarBenchmark();
+    if(moduloActivo === "operativo") conectarOperativo();
     window.removeEventListener("afterprint", restaurar);
   };
   window.addEventListener("afterprint", restaurar);
@@ -2500,6 +2511,156 @@ function seccionProyecto(){
   </section>`;
 }
 
+/* ------------------------------------------- equilibrio y apalancamiento
+   Los indicadores del módulo 2 que NO salen de un estado financiero: hace
+   falta separar costos fijos de variables, y un balance no lo trae. Se digitan
+   aquí, como en la calculadora de proyectos, en vez de inventarse. Los valores
+   cargados son los ejemplos de la cartilla (los overoles; las 20.000 unidades
+   a 15.000) para que la comparación con el material del curso sea directa. */
+
+const EQUILIBRIO_INICIAL = {precio: 125000, cvu: 62500, cf: 6000000, unidades: 200};
+const APALANCAMIENTO_INICIAL = {ventas: 300000000, cv: 200000000, cf: 58000000,
+                                intereses: 10000000, t: 30, dividendos: 8000000};
+
+function seccionOperativo(){
+  const e = EQUILIBRIO_INICIAL, a = APALANCAMIENTO_INICIAL;
+  return `
+  <section id="secOperativo">
+    <div class="regla"><h2>Punto de equilibrio</h2></div>
+    <p class="leyenda">Cuántas unidades —y cuántos pesos— hay que vender para cubrir los
+      costos fijos. Necesita separar los costos fijos de los variables, algo que un estado
+      financiero publicado no trae: por eso se digita.</p>
+    <div class="tarjeta">
+      <div class="pro-entrada">
+        <label>Precio de venta unitario
+          <input type="number" step="any" min="0" id="eqPrecio" value="${e.precio}"></label>
+        <label>Costo variable unitario
+          <input type="number" step="any" min="0" id="eqCvu" value="${e.cvu}"></label>
+        <label>Costos fijos del periodo
+          <input type="number" step="any" min="0" id="eqCf" value="${e.cf}"></label>
+        <label>Unidades programadas · opcional
+          <input type="number" step="any" min="0" id="eqUnidades" value="${e.unidades}"></label>
+      </div>
+      <div class="imp-acciones">
+        <button class="primario" id="btnEquilibrio">Calcular equilibrio</button>
+      </div>
+    </div>
+    <div id="eqResultado"></div>
+
+    <div class="regla" style="margin-top:34px"><h2>Grados de apalancamiento</h2></div>
+    <p class="leyenda">GAO, GAF y GAT: cuánto se amplifica la utilidad por cada 1 % que
+      cambian las ventas, por la estructura de costos (operativo) y por la deuda (financiero).</p>
+    <div class="tarjeta">
+      <div class="pro-entrada">
+        <label>Ventas
+          <input type="number" step="any" min="0" id="apVentas" value="${a.ventas}"></label>
+        <label>Costos variables
+          <input type="number" step="any" min="0" id="apCv" value="${a.cv}"></label>
+        <label>Costos y gastos fijos
+          <input type="number" step="any" min="0" id="apCf" value="${a.cf}"></label>
+        <label>Intereses
+          <input type="number" step="any" min="0" id="apIntereses" value="${a.intereses}"></label>
+        <label>Tasa de impuestos %
+          <input type="number" step="any" min="0" max="99" id="apT" value="${a.t}"></label>
+        <label>Dividendos preferentes · opcional
+          <input type="number" step="any" min="0" id="apDividendos" value="${a.dividendos}"></label>
+      </div>
+      <div class="imp-acciones">
+        <button class="primario" id="btnApalancamiento">Calcular apalancamientos</button>
+      </div>
+    </div>
+    <div id="apResultado"></div>
+  </section>`;
+}
+
+const metricaOp = (nombre, valor, formato, criterio, clase="") => `
+  <div class="pro-met ${clase}">
+    <div class="m-nom">${esc(nombre)}</div>
+    ${valor == null ? '<div class="m-val nd">no disponible</div>'
+                    : `<div class="m-val">${formato(valor)}</div>`}
+    <div class="m-crit">${esc(criterio)}</div>
+  </div>`;
+
+async function calcularEquilibrio(){
+  const btn = $("#btnEquilibrio"); btn.disabled = true;
+  const unidades = parseFloat($("#eqUnidades").value);
+  try{
+    const r = await fetch("/api/operativo/equilibrio", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({
+        precio: parseFloat($("#eqPrecio").value) || 0,
+        costo_variable_unitario: parseFloat($("#eqCvu").value) || 0,
+        costos_fijos: parseFloat($("#eqCf").value) || 0,
+        unidades_programadas: isNaN(unidades) || unidades <= 0 ? null : unidades,
+      })});
+    if(!r.ok) throw new Error((await r.json()).detail || "No se pudo calcular");
+    const d = await r.json();
+    const seg = d.margen_seguridad;
+    $("#eqResultado").innerHTML = `
+      <div class="op-lectura">${esc(d.lectura)}</div>
+      <div class="pro-metricas">
+        ${metricaOp("Punto de equilibrio en unidades", d.punto_equilibrio_unidades,
+            v => num(v, 1), d.formulas.punto_equilibrio_unidades)}
+        ${metricaOp("Punto de equilibrio en pesos", d.punto_equilibrio_pesos,
+            v => num(v, 0), d.formulas.punto_equilibrio_pesos)}
+        ${metricaOp("Margen de contribución unitario", d.margen_contribucion_unitario,
+            v => num(v, 0), `${num(d.razon_margen_contribucion * 100, 1)}% del precio`)}
+        ${seg == null ? "" : metricaOp("Margen de seguridad", seg,
+            v => `${num(v * 100, 1)}%`, d.formulas.margen_seguridad,
+            d.cubre_costos ? "favorable" : "desfavorable")}
+      </div>
+      <div class="op-nota">Fuente: ${esc(d.fuente)}.</div>`;
+  }catch(e){
+    $("#eqResultado").innerHTML = `<div class="aviso">${esc(String(e.message || e))}</div>`;
+  }finally{ btn.disabled = false; }
+}
+
+async function calcularApalancamiento(){
+  const btn = $("#btnApalancamiento"); btn.disabled = true;
+  const t = parseFloat($("#apT").value);
+  try{
+    const r = await fetch("/api/operativo/apalancamiento", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({
+        ventas: parseFloat($("#apVentas").value) || 0,
+        costos_variables: parseFloat($("#apCv").value) || 0,
+        costos_fijos: parseFloat($("#apCf").value) || 0,
+        intereses: parseFloat($("#apIntereses").value) || 0,
+        tasa_impuestos: isNaN(t) ? null : t / 100,
+        dividendos_preferentes: parseFloat($("#apDividendos").value) || 0,
+      })});
+    if(!r.ok) throw new Error((await r.json()).detail || "No se pudo calcular");
+    const d = await r.json();
+    const er = d.estado_resultados.map(f => `
+      <tr class="${f.total ? "total" : ""}"><td>${esc(f.renglon)}</td>
+        <td class="num">${num(f.valor, 0)}</td></tr>`).join("");
+    $("#apResultado").innerHTML = `
+      <div class="op-lectura">${esc(d.lectura)}</div>
+      <div class="pro-metricas">
+        ${metricaOp("GAO · apalancamiento operativo", d.gao, v => num(v, 2), d.formulas.gao)}
+        ${metricaOp("GAF · apalancamiento financiero", d.gaf, v => num(v, 2), d.formulas.gaf)}
+        ${metricaOp("GAT · apalancamiento total", d.gat, v => num(v, 2), d.formulas.gat)}
+        ${d.gaf_cartilla == null ? "" : metricaOp("GAF según la cartilla", d.gaf_cartilla,
+            v => num(v, 2), d.formulas.gaf_cartilla, "limite")}
+      </div>
+      <div class="tarjeta">
+        <h3>Estado de resultados por costeo variable</h3>
+        <div class="desplazable"><table class="op-er"><tbody>${er}</tbody></table></div>
+      </div>
+      <div class="op-nota">${esc(d.nota_gaf)} Fuente: ${esc(d.fuente)}.</div>`;
+  }catch(e){
+    $("#apResultado").innerHTML = `<div class="aviso">${esc(String(e.message || e))}</div>`;
+  }finally{ btn.disabled = false; }
+}
+
+function conectarOperativo(){
+  if(!$("#secOperativo")) return;
+  $("#btnEquilibrio").addEventListener("click", calcularEquilibrio);
+  $("#btnApalancamiento").addEventListener("click", calcularApalancamiento);
+  calcularEquilibrio();
+  calcularApalancamiento();
+}
+
 function pintarTira(flujos){
   $("#proTira").innerHTML = flujos.map((f, i) => `
     <div class="anio">
@@ -2859,6 +3020,12 @@ const MODULOS = [
     arma: a => seccionBenchmark(a),
   },
   {
+    id: "operativo",
+    nombre: "Equilibrio y apalancamiento",
+    resumen: "Punto de equilibrio, GAO, GAF y GAT con datos digitados",
+    arma: () => seccionOperativo(),
+  },
+  {
     id: "proyecto",
     nombre: "Proyecto de inversión",
     resumen: "VPN, TIR, payback y flujo de caja a 12 meses",
@@ -2895,6 +3062,7 @@ function irA(id, {recordar = true} = {}){
   if(id === "dictamen")   conectarIA();
   if(id === "proyecto"){  conectarProyecto(); conectarMensual(); }
   if(id === "benchmark")  conectarBenchmark();
+  if(id === "operativo")  conectarOperativo();
 
   if(recordar){
     try{ localStorage.setItem("palpito-modulo", id); }catch(e){ /* sin storage */ }

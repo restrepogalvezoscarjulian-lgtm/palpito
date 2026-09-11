@@ -1,4 +1,4 @@
-# Estado — 11 de septiembre de 2026 (tarde)
+# Estado — 11 de septiembre de 2026 (noche)
 
 ## Dónde vamos
 
@@ -8,7 +8,13 @@ financieros: **ahora también construye la vara con la que los mide**.
 
 Verificado ahora, no de memoria:
 
-- **`463 passed`** — la suite completa (ayer en la mañana eran 393)
+- **`490 passed`** — la suite completa (ayer en la mañana eran 393)
+- **Los dos módulos de la cartilla están cubiertos.** 33 indicadores desde los
+  estados (se agregaron GAF, EBITDA, margen EBITDA, CAPEX e intensidad) y un
+  módulo nuevo, *Equilibrio y apalancamiento*, con punto de equilibrio, GAO,
+  GAF y GAT digitados, precargado con los ejemplos de la cartilla.
+- **`Iniciar Palpito.bat`** en la raíz: doble clic, abre el navegador solo.
+  Es como se arranca el día de la exposición, sin pegar comandos.
 - **Se puede cargar una empresa escribiendo su nombre**, sin PDF. Se escribe
   "d1", se escoge el NIT y entran tres años desde Supersociedades, con su
   procedencia en pantalla. Probado en Chrome headless con D1 y con Ara
@@ -20,7 +26,6 @@ Verificado ahora, no de memoria:
   (comercio al por menor con surtido de alimentos), corte 2024, **155 empresas**,
   16 indicadores con mediana y cuartiles. Se escoge de un desplegable en la app.
 - ✅ Los 5 commits pendientes se subieron el 11-sep por la tarde.
-- 🔴 **La carga por nombre está sin commit** (ver *Lo primero al retomar*).
 - 📅 **La exposición es la semana del 14 al 18 de septiembre** (respondido el
   11-sep). Cabe pulir y ensayar; no abrir frentes grandes.
 - <https://github.com/restrepogalvezoscarjulian-lgtm/palpito> (MIT)
@@ -29,11 +34,12 @@ Verificado ahora, no de memoria:
 
 ## Lo primero al retomar
 
-### 1. Commit y push de la carga por nombre, si Oscar dice que sí
+### 1. No hay nada pendiente de código
 
-Preguntar cada vez; no es automático. Tocó `herramientas/supersociedades.py`,
-`api.py`, `frontend/index.html`, `tests/test_cargar_por_nit.py` (18 pruebas
-nuevas) y este archivo.
+Oscar pidió el 11-sep por la noche "no dejar nada pendiente" y se hizo todo:
+carga por NIT, arreglo de la IA, cinco indicadores, la calculadora de equilibrio
+y apalancamiento, el benchmark reconstruido con el diccionario corregido y el
+`.bat` de arranque. Todo con commit y push. Lo que sigue es **ensayar**.
 
 ### 2. La carga por nombre/NIT: construida el 11-sep por la tarde
 
@@ -411,9 +417,9 @@ balance apareció cada renglón. Adivinar sobrestimaría el endeudamiento.
   decir.
 - **¿Qué exige la rúbrica?** Sin respuesta desde el 29 de agosto.
 - **¿Se le entrega el repositorio al profesor, y cómo?** Sin definir.
-- ✅ **La carga por nombre/NIT ya está construida** (11-sep tarde). Falta su
-  commit.
-- **¿Se construyen más sectores de benchmark?** Hay uno. El comando es:
+- ✅ **La carga por nombre/NIT ya está construida y subida** (11-sep).
+- **¿Se construyen más sectores de benchmark?** Hay uno (4711, reconstruido el
+  11-sep por la noche con "Costos de distribución" en el diccionario). El comando es:
   `python -m herramientas.construir_benchmark <CIIU> <año> "<nombre>"`
 - **¿Desplegar en `finanzas.torbex.com.co`?** Todo listo; él decidió local.
 - **¿Arreglar el responsivo a 400px?** Cuatro secciones se desbordan.
@@ -431,13 +437,14 @@ balance apareció cada renglón. Adivinar sobrestimaría el endeudamiento.
 palpito/
 ├── backend/motor/       modelos · validacion · indicadores · diagnostico
 │                        · salud · importacion · narrativa · proyectos
-│                        · benchmark · secciones
+│                        · benchmark · secciones · operativo (equilibrio, GAO/GAF/GAT)
 ├── backend/herramientas/ supersociedades.py · construir_benchmark.py
 │                        (referencias sectoriales + carga por NIT; el API
 │                        usa supersociedades.py para buscar y descargar)
-├── backend/tests/       463 pruebas en 15 archivos
-├── backend/api.py       FastAPI: 25 rutas
-├── frontend/            index.html, sin frameworks, 7 secciones
+├── backend/tests/       490 pruebas en 17 archivos
+├── backend/api.py       FastAPI: 27 rutas
+├── frontend/            index.html, sin frameworks, 8 módulos
+├── Iniciar Palpito.bat  doble clic: levanta el motor y abre el navegador
 ├── casos/               3 casos del taller (ver cuál no se toca)
 ├── referencias/         ciiu-471100.json — el benchmark del sector
 ├── docs/DESPLIEGUE.md   guía para Dokploy
@@ -452,7 +459,7 @@ palpito/
 ```bash
 cd palpito/backend
 uvicorn api:app --reload      # → http://localhost:8000
-python -m pytest -q           # deben pasar 463
+python -m pytest -q           # deben pasar 490
 ```
 
 Para reconstruir un sector del benchmark (tarda unos minutos, usa internet):
@@ -463,4 +470,5 @@ PYTHONIOENCODING=utf-8 python -m herramientas.construir_benchmark 4711.00 2024 "
 ```
 
 ⚠️ Los servidores que levanta el asistente **mueren al cerrarse su sesión**. El
-día de la exposición hay que levantarlo desde una terminal propia.
+día de la exposición se arranca con **doble clic en `Iniciar Palpito.bat`**: abre
+una ventana negra (el motor, no cerrarla) y el navegador en localhost:8000.

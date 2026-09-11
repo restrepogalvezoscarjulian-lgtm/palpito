@@ -550,16 +550,37 @@ Se usa el **último periodo informado**, no el promedio: el benchmark responde a
 
 ---
 
-## 12. Indicadores pendientes
+## 12. Punto de equilibrio y grados de apalancamiento (calculadora)
 
-Requieren datos que el caso base no informa. Están en el alcance del curso y se
-agregarán cuando lleguen casos que los soporten:
+Son los indicadores del módulo 2 que **no salen de un estado financiero**:
+necesitan separar los costos fijos de los variables, y un balance publicado no
+trae esa separación. Viven en el módulo *Equilibrio y apalancamiento*, donde se
+digitan, igual que la calculadora de proyectos. Vienen precargados con los
+ejemplos de la cartilla para que la comparación sea directa.
 
-| Indicador | Dato faltante |
-|---|---|
-| GAO y GAT | Costos fijos y variables separados. Un estado financiero no los trae; la salida honesta es una calculadora aparte donde se digiten, como la de proyectos. |
-| Punto de equilibrio | Precio unitario, costo variable unitario, costos fijos. Ídem. |
-| Flujo de caja libre exacto | CAPEX de reposición vs. crecimiento (el flujo de efectivo) |
+| Indicador | Fórmula | Fuente |
+|---|---|---|
+| Punto de equilibrio en unidades | `PEU = Costos fijos / (Precio − Costo variable unitario)` | Cartilla |
+| Punto de equilibrio en pesos | `PE$ = Costos fijos / (1 − CVU / Precio)` | Cartilla |
+| Margen de seguridad | `(Unidades programadas − PEU) / Unidades programadas` | Baena |
+| **GAO** | `Margen de contribución / UAII` | Baena |
+| **GAF** | `UAII / (UAII − Intereses)` | Baena |
+| **GAT** | `GAO × GAF` | Baena |
 
-EBITDA, GAF y CAPEX se agregaron el 11-sep-2026 (§4 y §5); se calculan cuando
-el estado trae los insumos y se reportan "sin dato" cuando no.
+Con los overoles de la cartilla: PEU = 96 unidades, PE$ = 12.000.000. Con las
+20.000 unidades a 15.000: GAO = 100/42 = 2,38 (la cartilla redondea a 2,4).
+
+**El GAF se muestra con las dos fórmulas.** La estándar da 42/32 = **1,31**; la
+de la cartilla, que mete los dividendos preferentes en el denominador, da con
+sus propios datos 42 / (42 − 10 − 8/0,7) = **2,04**, no el 1,3 que ella
+reporta (§8.2). Se muestran ambas, la estándar como principal, para poder
+explicar la diferencia en la sustentación en vez de esconderla.
+
+**Si el costo variable unitario iguala o supera el precio no hay punto de
+equilibrio**: cada unidad pierde plata y vender más agranda la pérdida. Se avisa
+con esas palabras en vez de devolver el número negativo que la cartilla advierte
+que "no es lógico".
+
+Lo único que sigue fuera del alcance es el **flujo de caja libre exacto**, que
+necesita el estado de flujo de efectivo para separar el CAPEX de reposición del
+de crecimiento. Se reporta la aproximación declarada de §5.
