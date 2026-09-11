@@ -1,110 +1,120 @@
-# Estado — 10 de septiembre de 2026 (tercera jornada del día)
+# Estado — 11 de septiembre de 2026
 
 ## Dónde vamos
 
 **Pálpito** es una aplicación de diagnóstico financiero para *Análisis y Gerencia
-Financiera* (Universidad El Bosque). Hoy pasó de "funciona con el caso del
-taller" a **leer informes anuales reales de empresas colombianas**.
+Financiera* (Universidad El Bosque). Hoy dejó de ser solo un lector de estados
+financieros: **ahora también construye la vara con la que los mide**.
 
 Verificado ahora, no de memoria:
 
-- **`393 passed`** — la suite completa (el día empezó en 300)
-- **Almacenes Éxito entra limpio**: 0 errores de calidad, margen bruto 25,3 %,
-  días de inventario 63, cartera 11 días, endeudamiento 54 %. Cifras de un
-  supermercado de verdad.
-- 🔴 **HAY TRABAJO SIN COMMIT.** 6 archivos modificados. El último commit es
-  `14253e5`; todo lo posterior existe en un solo disco duro.
-- <https://github.com/restrepogalvezoscarjulian-lgtm/palpito> (MIT). Lo
-  comprometido sí está subido: `main...origin/main` sin nada por delante.
+- **`445 passed`** — la suite completa (ayer en la mañana eran 393)
+- **Almacenes Éxito entra limpio y completo**: 0 errores de calidad, puntaje
+  65,0, y las cinco dimensiones de salud evaluadas. Ayer la rentabilidad salía
+  "sin datos".
+- **El benchmark sectorial se calcula solo.** Un sector construido: CIIU 4711
+  (comercio al por menor con surtido de alimentos), corte 2024, **155 empresas**,
+  16 indicadores con mediana y cuartiles. Se escoge de un desplegable en la app.
+- 🔴 **4 commits sin subir.** `main...origin/main [ahead 4]`. Lo de estos dos
+  días existe en un solo disco duro.
+- <https://github.com/restrepogalvezoscarjulian-lgtm/palpito> (MIT)
 
 ---
 
 ## Lo primero al retomar
 
-### 1. 🔴 Borrar dos archivos que dejaron mis pruebas en `casos/`
+### 1. Preguntarle a Oscar si se hace push
 
-**Sigue pendiente: lo tiene que hacer Oscar.** Al asistente le bloquearon el
-borrado de archivos.
+Son **4 commits**: `11f74fe`, `cfabb3c`, `e62f9a2`, `7e2defe`, `66428ab`,
+`fa0a38c` (los cuatro últimos sin subir). Ha dicho que sí las dos veces que se
+le preguntó, **pero sigue preguntándose cada vez**. No es automático.
 
-```powershell
-cd "C:\Users\Lenovo\Documents\UNIVERSIDAD\PERIODO 2026_4\ANALISIS Y GERENCIA FINACIERA\palpito"
-Remove-Item "casos\comercial_andina_s_a_con_benchmark_de_ejemplo.json"
-Remove-Item "casos\grupo_bolivar.json"
-```
+### 2. La pregunta que quedó abierta y a medio investigar
 
-⚠️ **Corrección al ESTADO anterior, que decía que el primero era un duplicado.**
-No lo es: es peor. Lleva el **nombre y los periodos de Comercial Andina** pero
-por dentro tiene las **cifras reales de Éxito** (ventas 21.880.509). Es decir,
-en el desplegable se ofrece como el caso del taller y muestra los números de un
-supermercado. Salió del defecto de la casilla "Añadir estos años" que se arregló
-el 10-sep (ver abajo). **Los tres del taller están intactos** (verificado
-comparando campo por campo).
+Oscar preguntó el 11-sep: **¿se puede cargar una empresa escribiendo su nombre,
+en vez de subirle un PDF?** Se investigó y **SÍ se puede**. Falta construirlo.
 
-### 2. ✅ Resuelto — lo que quedó a medias ya se probó en el navegador
+Lo verificado:
 
-Verificado el 10-sep contra el servidor real, con `exito 2024.pdf` y
-`exito 2025.pdf` subidos **a la vez**:
+- El directorio `dd55-74ss` ("Sujetos obligados") tiene **161.771 empresas con
+  NIT y razón social**. Buscar "D1 S.A.S" devuelve el NIT 900276962.
+- Con ese NIT, los estados salen de los mismos datasets que ya usa el benchmark.
+- **`herramientas/supersociedades.armar_estados()` ya hace la conversión.** Es
+  la misma función; lo que falta es la pantalla y la ruta.
+- **29.362 empresas** tienen balance del corte 2024.
 
-- Cola de varios archivos: revisa uno por uno y queda **2023-2024-2025** ✅
-- "Guardar este caso": queda en disco con los tres periodos ✅
-- "Borrar": aparece solo en casos propios, y borra ✅
-- Los del taller están protegidos **por partida doble**: el botón no aparece y
-  el servidor responde **403** si se pide la ruta a mano ✅
+🔴 **Dos límites que hay que decirle antes de construirlo** *(ya se le dijeron)*:
 
-**Y destapó dos defectos, ya arreglados:**
+- **Las que cotizan en bolsa NO están**: Éxito, Ecopetrol, Argos, Nutresa,
+  Bancolombia le reportan a la **Superfinanciera**, no a Supersociedades. Para
+  esas sigue el PDF. Esto **complementa** el importador, no lo reemplaza.
+- 🔴 **Resgaval SAS NO aparece** en los 161.771 obligados (comprobado). La
+  empresa de Oscar no le reporta a Supersociedades, así que para **Serviteca y
+  el restaurante** seguiría siendo Excel o digitación a mano — que era justo la
+  prueba que más le servía a él.
 
-1. 🔴 **La casilla "Añadir estos años" venía marcada también en el PRIMER
-   archivo de la tanda**, contra lo que decía su propio comentario. Efecto: el
-   primer archivo se fundía con **el caso que estuviera en pantalla** —al abrir
-   la app, el del taller—. Es el origen del JSON corrupto del punto 1. Ahora hay
-   `posicionEnTanda` y solo se marca del segundo en adelante.
-2. "Quedan 1 archivo por revisar" → concuerda en singular.
+⚠️ **Y una corrección a cómo lo planteó:** él dijo "que la inteligencia
+artificial investigue". **Aquí no hace falta IA y es mejor que no la haya.** Es
+una consulta determinista: se pide un NIT y llega la cifra exacta, siempre la
+misma, auditable. Meter un modelo reabriría justo el riesgo que el proyecto
+lleva meses cerrando.
 
-⚠️ **Trampa nueva, y cara:** el navegador **reusa el `index.html` de la carga
-anterior**. La prueba corrió dos veces dando el resultado viejo idéntico, sin
-que nada fallara. En el guion de DevTools hay que mandar
-`Network.setCacheDisabled {cacheDisabled:true}` antes de navegar.
+### 3. Levantar el servidor antes de probar nada en el navegador
 
-⚠️ Al cargar los PDFs, la empresa queda con el **nombre del archivo**
-("exito 2024"). Se corrige a mano en el campo *Empresa* de la revisión, pero
-**hay que acordarse antes de la exposición**.
-
-### 3. Hacer commit
-
-**Preguntarle a Oscar antes de hacer push.**
+Ver el final de este archivo. **Con `--reload` no basta**: ver *Las trampas*.
 
 ---
 
-## Lo que se arregló hoy (tercera jornada)
+## Lo que se hizo estos dos días
 
-Oscar diagnosticó el problema él mismo: *"no son los estados, es los datos que el
-modelo elige como predeterminados"*. Tenía razón, y las cifras lo confirman.
+### 10-sep — los estados reales entran limpios
 
 | | Antes | Ahora |
 |---|---|---|
-| Errores en Éxito 2024 | **10** | **0** |
-| `ventas` | 60.481 (un renglón de derivados) | **21.880.509** ✅ |
-| `pasivo_total` | no existía en el catálogo | **9.539.043** ✅ |
-| Días de inventario | 3.614 (diez años) | **62,9** ✅ |
+| Errores en Éxito 2024 | 10 | **0** |
+| `ventas` | 60.481 (un renglón de derivados) | **21.880.509** |
+| Días de inventario | 3.614 (diez años) | **62,9** |
+| Rentabilidad en el puntaje | 🔴 **sin datos** | **70,7** |
 
-**Cuatro causas, todas nuestras:**
+Cuatro causas de la primera tanda, todas nuestras: faltaban `pasivo_total` y
+`pasivo_no_corriente` en el catálogo del importador; renglones del flujo de
+efectivo se disfrazaban de resultados; el diccionario elegía por frase más larga
+en vez de por posición; y un error que no era un error.
 
-1. **Faltaban dos cuentas en el catálogo del importador.** `pasivo_total` y
-   `pasivo_no_corriente` existen en `modelos.py` desde siempre, pero el
-   importador no podía producirlas, así que **ningún balance real cuadraba**.
-   El "Total pasivo" de Éxito estaba en el PDF sin asignar: con el patrimonio da
-   exactamente el activo total.
-2. **Renglones del flujo de efectivo se disfrazaban de resultados.**
-   *(`CRUCES-VISTOS.md §9`.)*
-3. **El diccionario elegía por frase más larga, no por posición.** Ahora manda lo
-   que aparece **antes** en la etiqueta: `"TOTAL PASIVOS CORRIENTES Pasivos no
-   corrientes"` trae el saldo del corriente, y lo de atrás es el encabezado
-   pegado.
-4. **Un error que no era un error.** *(`CRUCES-VISTOS.md §10`.)*
+Y una quinta que salió del ensayo de la exposición: **la guarda contra el flujo
+de efectivo se comía la utilidad operacional**. *(`CRUCES-VISTOS.md §11`.)*
 
-**Y de la jornada anterior**, ya comprometido: la vista previa que mostraba el
-número de nota como saldo, el verde falso de Grupo Bolívar, unir años de varios
-archivos, y el botón de guardar.
+### 11-sep — el benchmark se construye solo
+
+**La idea:** no hacía falta un motor nuevo. Pálpito ya sabe convertir un balance
+en 28 indicadores; dándole las 29.362 sociedades que le reportan a la
+Superintendencia, devuelve el benchmark del país. **La misma máquina que analiza
+una empresa construye la vara con la que se la mide.**
+
+```
+CIIU -> NITs -> balance y resultados -> las 23 cuentas -> indicadores
+     -> mediana y cuartiles -> referencias/ciiu-XXXX.json
+```
+
+**Almacenes Éxito contra las 155 empresas de su CIIU**, y la historia es DuPont
+puro — sirve tal cual para la sustentación:
+
+| | Éxito | Sector |
+|---|---|---|
+| Margen bruto | **25,6 %** | 16,2 % |
+| Días de proveedores | **95,2** | 37,1 |
+| Ciclo de caja | **−24,8** | +9,2 |
+| Rotación de activos | **1,26** | 3,80 |
+| **ROE** | **9,4 %** | **12,2 %** |
+
+Gana en las dos palancas que se negocian —margen y plazo de proveedores— y **aun
+así su ROE es menor**, porque rota sus activos un tercio de lo que rota el
+sector. Es dueño de sus hipermercados mientras D1 y Ara arriendan locales
+pequeños: el ladrillo infla el activo y hunde la rotación.
+
+⚠️ **Decirlo antes de que lo pregunten:** las cifras de Éxito son del
+**consolidado** (incluye Uruguay y Argentina); las del sector, de operaciones en
+Colombia.
 
 ---
 
@@ -112,88 +122,77 @@ archivos, y el botón de guardar.
 
 Un chat nuevo no puede deducir esto leyendo el código.
 
-### Decidido hoy
+### Decidido estos dos días
 
-**El detector agrupa bloques y elige la pareja vecina**, no el mejor de cada
-clase. Los estados financieros van seguidos: esa creencia ya estaba en el código
-(`MAX_SEPARACION`), pero se aplicaba tarde, para descartar, en vez de temprano,
-para elegir.
+**El benchmark se mapea por nombre EXACTO, con diccionario propio**, y no por
+subcadena como el importador de PDF. Un PDF trae etiquetas libres y hay que
+adivinar; la taxonomía de Supersociedades trae **73 conceptos fijos en el balance
+y 28 en resultados**. Adivinar ahí no solo sobra: hace daño.
+*(`CRUCES-VISTOS.md §11`.)*
 
-**La utilidad neta es la de operaciones continuadas**, y queda anotado con la
-cifra que se dejó fuera.
+**Mediana y cuartiles, nunca promedio.** Siempre hay una empresa que vendió un
+activo. Y con cuartiles se puede decir *"está en el cuartil superior del
+sector"*, que es como habla un analista.
 
-**La empresa cargada entra a la lista de la sesión, y AHORA además se puede
-guardar en disco** con el botón *"Guardar este caso"*, y borrar con *"Borrar"*.
-Se mantiene la separación que se decidió: **probar un PDF no ensucia la carpeta;
-guardar es un acto explícito**. Los tres casos del taller están protegidos en el
-servidor: no se pueden pisar ni borrar, ni pidiéndolo.
+**La aplicación NUNCA consulta internet.** Lee `referencias/` del disco.
+Reconstruir un sector es un acto deliberado que se corre aparte. El día de la
+exposición no puede depender del wifi del salón.
 
-**Se subió a GitHub**, después de dos días de commits solo locales. Oscar lo
-pidió cuando se le dijo que 1.113 líneas vivían en un solo disco duro. ⚠️ Esto
-**no** convierte el push en automático: **sigue sin subirse sin que lo pida.**
+**Las referencias guardan su procedencia** —año, cuántas empresas, fuente y
+fecha de descarga— y se muestra en pantalla. Una referencia que no se puede
+sustentar ante quien pregunte no sirve para comparar nada.
+
+**La deuda financiera se deja fuera del benchmark a propósito.** Bajo NIIF va
+mezclada con derivados en "Otros pasivos financieros". Sumarla sobrestimaría el
+endeudamiento, que es el error que costó **66 %** en Grupo Argos. Los
+indicadores que dependen de ella dicen "no disponible", igual que para Éxito.
+
+**El encadenamiento del estado de resultados se degrada a advertencia** cuando
+el catálogo no explica el activo. En Éxito, "operacional − financieros" da
+196.444 y él declara 292.908: los 96.464 de diferencia son ingresos financieros
+y método de participación que las 23 cuentas no recogen. **En una pyme sigue
+siendo ERROR**, porque ahí un descuadre es un descuadre.
 
 ### Decisiones de fondo, que siguen vigentes
 
 **La IA nunca calcula.** Sigue siendo la decisión central. El motor calcula y
-decide; el modelo recibe números ya resueltos y los traduce a prosa. Conexión:
-OpenRouter, `deepseek/deepseek-v4-flash`, clave en `.env` (fuera de git). Hace
-cuatro cosas: redacta el diagnóstico, responde preguntas, redacta el concepto de
-viabilidad del proyecto, y propone a qué cuenta corresponde una etiqueta
-desconocida. **El modelo puede opinar sobre cómo se llama una fila, jamás sobre
-cuánto vale.**
+decide; el modelo recibe números ya resueltos y los traduce a prosa. OpenRouter,
+`deepseek/deepseek-v4-flash`, clave en `.env` (fuera de git). Hace cuatro cosas:
+redacta el diagnóstico, responde preguntas, redacta el concepto de viabilidad, y
+propone a qué cuenta corresponde una etiqueta desconocida. **El modelo puede
+opinar sobre cómo se llama una fila, jamás sobre cuánto vale.**
 
-**Detectar las páginas de los estados NO usa el modelo.** Se hizo determinista
-porque un estado financiero siempre se anuncia con las mismas palabras: buscarlas
-es instantáneo, gratis y **auditable**. Que el detector se haya equivocado no
-cambia la decisión: el arreglo fue mejor lógica, no un modelo.
+⚠️ **Y darle datos mal etiquetados la rompe igual que darle datos sin calcular.**
+`narrativa.py` usa `diagnostico.renglon_de_caja` a propósito: si al modelo le
+llega "Consumido" sobre una partida que liberó caja, redacta lo contrario de lo
+que pasó.
+
+**Detectar las páginas de los estados NO usa el modelo.** Determinista, porque un
+estado financiero siempre se anuncia con las mismas palabras: instantáneo,
+gratis y **auditable**.
 
 **Nada externo se inventa.** El WACC y las referencias sectoriales no se deducen
-de los estados. Si no se declaran, se reportan como no disponibles. El benchmark
-**hereda** la dirección de mejora de `CRITERIOS` en `salud.py`.
+de los estados. Si no se declaran, se reportan como no disponibles.
 
 **La inversión de un proyecto viaja aparte de los flujos y positiva.** El motor
 le pone el signo. Es el error más común del tema.
 
-**Se reportan los dos paybacks, no uno.** La diferencia entre el simple y el
-descontado *es* el hallazgo del taller.
-
-**La TIR se resuelve por bisección.** Para más de dos periodos no hay fórmula
-cerrada: es un polinomio.
+**Se reportan los dos paybacks**, y **la TIR se resuelve por bisección**.
 
 **La dirección visual es un instrumento de registro de precisión.** La eligió
-Oscar entre tres opciones. Todo el sistema está en `DESIGN.md`.
-
-**Dos calibraciones, y no son decorativas.** Oscura para pantalla y Teams; clara
-de alto contraste para proyector, porque **un proyector de salón lava los negros**.
+Oscar entre tres opciones. Todo el sistema está en `DESIGN.md`. **Dos
+calibraciones**: oscura para pantalla, clara de alto contraste para proyector,
+porque un proyector de salón lava los negros.
 
 **Las tildes importan.** En una exposición, "La operacion no genero caja" se lee
-como descuido. ⚠️ Con un matiz que hoy quedó fijado en pruebas: `importacion.py`
-va sin tildes **solo en las claves del diccionario**; la prosa que ve el usuario
-las lleva.
+como descuido — y esa frase **estuvo en el código hasta el 10-sep**. Matices:
+`importacion.py` va sin tildes **solo en las claves del diccionario**; la prosa
+que ve el usuario las lleva. **Los comentarios del código se dejan sin tildes a
+propósito** (decisión de Oscar el 10-sep: solo se corrige lo que se ve en
+pantalla).
 
----
-
-## Lo verificado contra el profesor
-
-Él resolvió el taller de la sesión 6 en voz alta, así que sus cifras sirven de
-patrón. Verificado hoy contra el API, no de memoria:
-
-| | Profesor | Pálpito |
-|---|---|---|
-| VP de los flujos | 1.706 | 1.705,76 ✅ |
-| VPN | 206 | 205,76 ✅ |
-| Payback descontado | 3,57 años | 3,57 ✅ |
-| Índice de rentabilidad | 1,14 | 1,14 ✅ |
-| **TIR** | **16,7 %** | **15,62 %** ❌ |
-
-**La TIR del profesor está mal y se demuestra solo.** Comprobado a mano hoy: a
-15,62 % el VPN da **0,000**; a 16,7 % da **−35,17**. La TIR es, por definición, la
-tasa a la que el VPN vale cero. Queda en `FORMULAS.md §8.6` como la **sexta**
-discrepancia con el material del curso. La conclusión no cambia (sigue siendo
-viable por TIR); cambia la cifra.
-
-⚠️ **Corrección al ESTADO anterior**, que decía 15,63 %: a esa tasa el VPN da
-−0,43, no cero. La cifra correcta es **15,62 %**.
+**Los números van a la colombiana**: punto de miles, coma decimal. `_num` y
+`_pct` en `proyectos.py`.
 
 ---
 
@@ -201,198 +200,200 @@ viable por TIR); cambia la cifra.
 
 Lo que ya costó horas encontrar.
 
+### De las fuentes de datos
+
+🔴 **EL PORTAL DE DATOS ABIERTOS ENTREGA EL DATO YA CORRUPTO.** Las vocales
+acentuadas llegan como `EF BF BD` —U+FFFD bien codificado— así que
+`"Ganancia (pérdida)..."` no empata con nada. No es un problema de
+decodificación de este lado. Se comparan los dos lados por su **esqueleto
+ASCII**. Sin esto, el benchmark salía sin margen operacional, sin margen neto,
+sin ROA y sin ROE, **y nada fallaba: los indicadores simplemente no aparecían**.
+*(`CRUCES-VISTOS.md §12`.)*
+
+🔴 **El archivo de las "10.000 empresas más grandes" NO sirve para ratios.** Trae
+las cifras en billones redondeadas a dos decimales: toda empresa que gane menos
+de 5.000 millones tiene ganancia **0,00**. Daba mediana de margen neto, ROA y
+ROE **de 0,00 %**. Sirve para ordenar por tamaño y nada más.
+*(`CRUCES-VISTOS.md §13`.)*
+
+🔴 **La API del portal necesita HTTPS.** Con `http://` devuelve vacío sin error.
+
+🔴 **Los que cotizan en bolsa no están en Supersociedades.** Éxito, Ecopetrol,
+Argos, Nutresa, Bancolombia → Superfinanciera. Se ve en el campo `supervisor`.
+
+⚠️ **Los ratios no dependen de la unidad.** Da igual que el archivo venga en
+pesos o en miles: al dividir se cancela. Hay una prueba que lo fija.
+
 ### De la importación de archivos reales
 
-🔴 **Un PDF que "se lee bien" puede estar entregando basura.** Si el documento
-trae índice y los estados van escaneados, se lee el índice y los números de
-página entran como saldos. Revisar siempre los avisos antes de confirmar.
+🔴 **Un PDF que "se lee bien" puede estar entregando basura.** Si trae índice y
+los estados van escaneados, entran números de página como saldos.
 
-🔴 **El conteo de páginas escaneadas va sobre el documento COMPLETO**, aunque solo
-se lean unas páginas. Al acotar el rango se rompió esto una vez y **el aviso más
-importante desapareció** sin que nada fallara.
+🔴 **El conteo de páginas escaneadas va sobre el documento COMPLETO.**
 
 🔴 **Una nota del fondo del documento puede puntuar más que el estado de verdad.**
-En Argos, una nota de la página 82 le ganaba al balance repartido en tres hojas.
-Por eso el detector agrupa bloques. *(`CRUCES-VISTOS.md §4`.)*
+*(`CRUCES-VISTOS.md §4`.)*
 
-🔴 **Leer una página de más puede cambiar una cifra sin avisar.** La 20 de Argos
-subía la utilidad neta de 733.427 a 4.346.462, y de paso metía "OTRO RESULTADO
-INTEGRAL" como gasto de renta. Hoy está protegido, pero la lección queda: el
-rango de páginas no es un detalle de rendimiento, **es un dato de entrada**.
+🔴 **Leer una página de más puede cambiar una cifra sin avisar.** El rango de
+páginas **es un dato de entrada**, no un detalle de rendimiento.
 
 🔴 **El lector de PDF pega el total con el encabezado siguiente.** Produce
-renglones como `"total pasivos corrientes pasivos no corrientes"`, donde las dos
-cosas conviven. Por eso el corte mira **de qué es el total**, con un `.*?`
-perezoso, no si la palabra "no" aparece por ahí.
+`"total pasivos corrientes pasivos no corrientes"`. El corte mira **de qué es el
+total**, con un `.*?` perezoso.
 
-🔴 **El archivo trae los TRES estados, y los del flujo de efectivo se disfrazan.**
-"Compras de propiedades, planta y equipo" entraba como compras de mercancía y
-disparaba los días de inventario a 3.614. Los verbos delatan: *compras de*,
-*adiciones*, *adquisición*, *venta de*, *antes de cambios en*.
-*(`CRUCES-VISTOS.md §9`.)*
+🔴 **El archivo trae los TRES estados y los del flujo se disfrazan.** Los verbos
+delatan: *compras de*, *adiciones*, *adquisición*, *antes de cambios en*.
 
-🔴 **El diccionario elige por POSICIÓN, no por frase más larga.** El lector de PDF
-pega el encabezado siguiente al total anterior. Una etiqueta dice lo que dice por
-como **empieza**; lo de atrás es ruido.
+🔴 **Pero la guarda del flujo puede comerse un resultado legítimo.** Bajo NIIF la
+utilidad operacional se llama *"Ganancia por actividades de operación"*. Manda
+**cómo empieza** la etiqueta. *(`CRUCES-VISTOS.md §11`.)*
 
-🔴 **Los plurales van explícitos en el diccionario.** Sin `"total pasivos
-corrientes"`, ese renglón empieza igual que `"total pasivos"` y se lo lleva el
-pasivo TOTAL, que es otra cifra.
+🔴 **Los plurales van explícitos en el diccionario.**
 
-🔴 **`importacion.py` va sin tildes SOLO en las claves del diccionario.** Se
-comparan contra etiquetas ya normalizadas (el normalizador quita las tildes). Los
-avisos que lee el usuario **sí las llevan**. Dos pruebas fijan las dos mitades.
+🔴 **`importacion.py` va sin tildes SOLO en las claves.** Los avisos que lee el
+usuario **sí las llevan**. Dos pruebas fijan las dos mitades.
 
-🔴 **`unidad="dias"` y `unidad="anios"` son valores de enumeración**, no texto. El
-frontend los compara y los traduce al mostrar. No acentuarlos.
+🔴 **`unidad="dias"` y `unidad="anios"` son valores de enumeración**, no texto.
 
-🔴 **La columna "Nota" se descarta por POSICIÓN, no por entenderla.** El armador se
-queda con los dos últimos números porque hay dos periodos. Con tres periodos
-declarados y columna de nota, volvería a fallar. *(`CRUCES-VISTOS.md §1`.)*
+🔴 **La columna "Nota" se descarta por POSICIÓN.** Con tres periodos declarados y
+columna de nota, volvería a fallar. *(`CRUCES-VISTOS.md §1`.)*
 
-⚠️ **Los estados publicados traen costos y gastos entre paréntesis** (negativos)
-porque los están restando. Se voltean al armar, **nunca en silencio**: y desde hoy
-eso es cierto de verdad, no solo en un comentario. *(`CRUCES-VISTOS.md §7`.)*
+⚠️ **Los estados publicados traen costos y gastos entre paréntesis.** Se voltean
+al armar, **nunca en silencio**. *(`CRUCES-VISTOS.md §7`.)*
 
 ### Del código
 
 🔴 **`totales?` no significa "total" u "opcionalmente totales".** El `?` aplica
-solo a la letra anterior: `totales?` es "totale" más una "s" opcional, y **no
-empata con "total"**. Costó una depuración entera. Lo correcto es
-`total(?:es)?`.
+solo a la letra anterior. Lo correcto es `total(?:es)?`.
 
-🔴 **Reponer tildes con búsqueda y reemplazo ROMPE el código.** Con `\b` el guion
-bajo protege `razon_corriente`, pero **nada protege a los identificadores sin
-guion bajo**: `formula=` se volvió `fórmula=`. La forma correcta: recorrer con
-`tokenize` y tocar **solo tokens STRING que contengan un espacio**.
-
-🔴 **Las f-strings de Python 3.12 no son tokens STRING.** Su texto viaja en
-`FSTRING_MIDDLE`, y ahí vive buena parte de la prosa del motor.
+🔴 **Reponer tildes con búsqueda y reemplazo ROMPE el código.** `formula=` se
+volvió `fórmula=`. Recorrer con `tokenize` y tocar **solo tokens STRING con un
+espacio**. Y **las f-strings de Python 3.12 no son tokens STRING**: su texto
+viaja en `FSTRING_MIDDLE`.
 
 🔴 **No le agregue periodos a `comercial_andina.json`.** Las pruebas verifican por
-posición: meter un año al frente corre todos los índices y revientan 29. Los
-casos nuevos van en archivos nuevos.
+posición: meter un año al frente revienta 29.
 
-🔴 **`validacion.validar()` recibe un `EstadosFinancieros`, no un dict.** Hay que
-envolverlo: `EstadosFinancieros(est)`.
+🔴 **`validacion.validar()` recibe un `EstadosFinancieros`, no un dict.**
 
-🔴 **`Tabla.como_dict()`, no `a_dict()`.** Y las `Fila` son dataclasses, no
-diccionarios: se lee `f.cuenta`, no `f.get("cuenta")`.
+🔴 **`Tabla.como_dict()`, no `a_dict()`.** Las `Fila` son dataclasses.
 
-🔴 **Para el análisis completo hay atajo:** `api._analizar(ef)` encadena
-validación, indicadores, alertas, salud y gráficas.
+🔴 **Para el análisis completo hay atajo:** `api._analizar(ef)`.
 
-🔴 **Un servidor viejo no conoce el código nuevo.** Si algo responde raro después
-de tocar el backend, es que `uvicorn` se arrancó sin `--reload`. Pasó dos veces
-hoy.
+🔴 **`importar(nombre, contenido)`** — el nombre va PRIMERO.
 
-🔴 **Rutas con `:` en Git Bash de Windows.** `git show origin/main:archivo` falla.
-Usar `MSYS_NO_PATHCONV=1` adelante.
+🔴 **`Proyecto` usa `inversion`, no `inversion_inicial`**, y la función es
+`evaluar_proyecto`.
 
-🔴 **Los heredoc de bash se atragantan con comillas sueltas y con `\s`.** Escribir
-documentos largos por consola falla; se escribe el archivo directamente. Y un
-`\\s` dentro de un heredoc puede llegar como `\s` y luego degradarse a `s`, que
-**borra todas las eses del texto** sin que nada falle.
+🔴 **Un servidor viejo no conoce el código nuevo.** `--reload` **no siempre
+basta**: el 10-sep hubo que matar y relevantar uvicorn para que el importador
+nuevo se viera. Si algo responde raro después de tocar el backend, **relevántelo
+de cero**.
+
+🔴 **Rutas con `:` en Git Bash de Windows.** Usar `MSYS_NO_PATHCONV=1` adelante.
+
+🔴 **Los heredoc de bash se atragantan con comillas sueltas y con `\s`.**
+
+⚠️ **La consola de Windows es cp1252 y revienta al imprimir texto con tildes o
+U+FFFD.** Usar `PYTHONIOENCODING=utf-8` adelante.
 
 ### De la interfaz y de probarla
 
-🔴 **Se puede manejar Chrome sin instalar nada.** Node 24 ya trae `WebSocket`
-global, así que el protocolo DevTools se habla directo: se arranca
-`chrome.exe --headless=new --remote-debugging-port=9333`, se lee
-`http://127.0.0.1:9333/json/list` y se abre el socket. Con eso se sube un PDF de
-verdad por el `<input type=file>` (`DOM.setFileInputFiles`), se navegan las
-secciones y se toman capturas. **Es como se verificó todo lo de hoy.**
+🔴 **EL NAVEGADOR REUSA EL `index.html` DE LA CARGA ANTERIOR.** El 10-sep la
+prueba corrió **dos veces dando el resultado viejo idéntico**, sin que nada
+fallara, mientras el arreglo ya estaba en disco. En el guion de DevTools hay que
+mandar `Network.setCacheDisabled {cacheDisabled:true}` **antes de navegar**.
 
-🔴 **`const` a nivel de script NO queda en `window`.** `Runtime.evaluate` sí lo ve,
-porque corre en el ámbito global; pero `iframe.contentWindow.MODULOS` da
-`undefined`. Dentro de un iframe hay que usar `w.eval("MODULOS")`.
+🔴 **Se puede manejar Chrome sin instalar nada.** Node 24 trae `WebSocket`
+global: se arranca `chrome.exe --headless=new --remote-debugging-port=9333`, se
+lee `http://127.0.0.1:9333/json/list` y se abre el socket. Con
+`DOM.setFileInputFiles` se sube un PDF de verdad. **Es como se verificó todo.**
 
-🔴 **Chrome headless en Windows tiene un ancho mínimo de ventana (~490px).** Una
-captura pedida a 390px es una página de 490px recortada y **miente**. Para
-verificar responsivo hay que cargar la página en un iframe del ancho buscado y
-comparar `scrollWidth` con `clientWidth`.
+⚠️ **`DOM.setFileInputFiles` ya dispara el evento `change`.** Dispararlo a mano
+además falla, porque el importador ya repintó y el input desapareció.
 
-⚠️ **Enmascarar un elemento desvanece también su texto.** La retícula del dictamen
-borraba las letras hasta que se movió a un pseudo-elemento `::before`.
+🔴 **`const` y `let` a nivel de script NO quedan en `window`.** `datosCaso`
+existe para `Runtime.evaluate` pero `window.datosCaso` es `undefined`.
 
-⚠️ **`button:hover:not(:disabled)` tiene más especificidad que `button.primario`**
-y le robaba el color, dejando texto claro sobre ámbar (1,8:1, ilegible).
+🔴 **Chrome headless en Windows tiene ancho mínimo (~490px).** Una captura a
+390px **miente**.
 
-🔴 **Al generar JavaScript desde Python, cuidado con los saltos de línea
-escapados.** El método que funciona: escribir el fragmento en un archivo aparte y
-que el script lo lea.
+⚠️ **`confirm()` bloquea al navegador headless.** Hay que atender
+`Page.javascriptDialogOpening`.
+
+⚠️ **Enmascarar un elemento desvanece también su texto.**
+
+⚠️ **`button:hover:not(:disabled)` tiene más especificidad que `button.primario`.**
 
 ### Del despliegue
 
 🔴 **El Dockerfile NUNCA se ha construido.** No hay Docker en el PC.
 
-🔴 **En Dokploy: usar tipo "Application", NO "Compose".** Los Compose se salen de
-`dokploy-network` en cada redespliegue.
+🔴 **En Dokploy: usar tipo "Application", NO "Compose".**
 
 ---
 
 ## Los casos, y cuál no se toca
 
 - **`comercial_andina.json`** — el del taller, dos periodos. 🔴 **NO MODIFICAR.**
-  La suite lo verifica contra valores calculados a mano: es la evidencia de
-  auditoría del proyecto.
-- **`andina_trienio.json`** — el mismo caso con 2022 por delante. Las cifras de
-  2022 son una extensión didáctica coherente, y conservan el balance descuadrado
-  a propósito.
-- **`andina_con_benchmark.json`** — el trienio con referencias sectoriales.
+  Es la evidencia de auditoría del proyecto.
+- **`andina_trienio.json`** — el mismo caso con 2022 por delante.
+- **`andina_con_benchmark.json`** — el trienio con referencias.
   🔴 **Esas cifras son ILUSTRATIVAS, no son datos reales del sector.**
 
-⚠️ **Los tres salen en semáforo rojo, y está bien.** Los datos del taller traen el
-balance descuadrado (550 en 2023, 390 en 2024) y Pálpito lo dice. No pasan por el
-importador, así que ningún cambio del lector puede afectarlos.
+⚠️ **Los tres salen en semáforo rojo, y está bien.** Los datos del taller traen
+el balance descuadrado a propósito. No pasan por el importador.
+
+✅ **Los dos casos sueltos se borraron el 10-sep.** Uno era un Frankenstein: el
+nombre de Comercial Andina con las cifras de Éxito adentro, producto del defecto
+de la casilla "Añadir estos años". Ya está arreglado.
 
 ---
 
 ## Empresas grandes: qué se probó de verdad
 
-**Ecopetrol 2024** (146 páginas): ❌ **no sirve ese PDF.** Las páginas 11-17 —los
-estados— son **imágenes escaneadas**. La app lo detecta y avisa dos veces.
+**Almacenes Éxito 2024 + 2025**: ✅ **el caso de referencia.** 20 cuentas, tres
+periodos (2023-2024-2025), 0 errores, puntaje 65,0. Los dos PDF están en
+`C:\Users\Lenovo\Downloads\exito 2024.pdf` y `exito 2025.pdf`.
 
-**Nutresa 2025** (75 páginas): ✅ **funcionaba** (páginas 10-12, 17 cuentas).
-⚠️ **El PDF ya no está en el disco**, así que no se pudo volver a comprobar tras
-los cambios de hoy. Lo que se dice de Nutresa en `CRUCES-VISTOS.md §4` es
-inferencia, no medición.
+**Grupo Argos 2025** (223 páginas): ✅ funciona. Rango 16-19 detectado solo.
 
-**Grupo Argos 2025** (223 páginas, consolidado): ✅ **funciona.** Rango 16-19
-detectado solo, 18 cuentas, dos periodos, las cifras cuadran con el informe. La
-capa de seguridad sigue trabajando: el puntaje de salud sale marcado
-`confiable: false`, porque el catálogo de 23 cuentas no cubre un holding.
+**Ecopetrol 2024**: ❌ **no sirve ese PDF.** Las páginas de los estados son
+imágenes escaneadas. La app lo detecta y avisa dos veces.
 
-**La limitación de diseño que queda:** el catálogo tiene **23 cuentas, pensadas
-para una pyme**. Un holding tiene crédito mercantil, intangibles e inversiones en
-asociadas que no caben. Por eso la validación reporta que el activo total no
-cuadra con activo corriente + PPE. **No invalida el análisis** —liquidez,
-márgenes, rotación y rentabilidad no dependen de esas cuentas— pero conviene
-decirlo antes de que lo pregunten.
+**Nutresa 2025**: ⚠️ funcionaba, pero **el PDF ya no está en el disco**.
+
+**La limitación de diseño:** el catálogo tiene **23 cuentas, pensadas para una
+pyme**. Un holding no cabe. No invalida el análisis —liquidez, márgenes,
+rotación y rentabilidad no dependen de esas cuentas— pero conviene decirlo antes
+de que lo pregunten.
+
+⚠️ **La deuda financiera de Éxito no se importa, a propósito.** En su balance se
+llama "Créditos y préstamos" **dos veces con el mismo nombre**, una en el
+corriente y otra en el no corriente, y el diccionario no sabe en qué parte del
+balance apareció cada renglón. Adivinar sobrestimaría el endeudamiento.
 
 ---
 
 ## 🔴 Pendientes que son de Oscar, no míos
 
-- ~~**¿Se sube a GitHub?**~~ ✅ **Resuelto el 10-sep-2026.** Oscar lo pidió y se
-  subió. De aquí en adelante la pregunta es otra: **si sigue queriendo push cada
-  vez, o vuelve a commit local.** Sigue sin subirse solo: preguntar antes.
-- **¿Cuándo es la exposición?** El profesor dijo el 2 de septiembre que quedaban
-  tres clases y que la última era la nota. **Ya tiene fecha real.**
+- **¿Se hace push de los 4 commits?** Preguntar cada vez.
+- **¿Cuándo es la exposición?** 🔴 **Sin respuesta desde el 2 de septiembre**, y
+  se le ha preguntado cuatro veces. **Es el dato que decide qué se construye y
+  qué no.**
 - **¿Qué exige la rúbrica?** Sin respuesta desde el 29 de agosto.
 - **¿Se le entrega el repositorio al profesor, y cómo?** Sin definir.
-- **¿Desplegar en `finanzas.torbex.com.co`?** Todo listo; él decidió dejarlo en
-  local. No desplegar sin que lo pida.
-- **¿Cargar un estado financiero de un negocio suyo?** De Serviteca o del
-  restaurante. Sigue sin hacerse, y es la prueba que más le serviría a él: son
-  pymes, así que el catálogo de 23 cuentas les queda bien.
-- **¿Arreglar el responsivo a 400px?** Cuatro secciones se desbordan. Para
-  proyector no molesta.
-- **¿Se borran los dos casos sueltos de `casos/`?** Ver arriba. Uno duplica un
-  caso del taller.
-- **¿Qué empresa se lleva a la exposición?** Almacenes Éxito ya entra limpio y es
-  del tipo correcto (compra, guarda y vende). Grupo Bolívar y Grupo Argos salen
-  marcados como no confiables, con razón: son un banco y un holding.
+- **¿Se construye la carga de empresas por nombre/NIT?** Investigado y viable
+  (ver *Lo primero al retomar*). Falta su visto bueno y saber la fecha.
+- **¿Se construyen más sectores de benchmark?** Hay uno. El comando es:
+  `python -m herramientas.construir_benchmark <CIIU> <año> "<nombre>"`
+- **¿Desplegar en `finanzas.torbex.com.co`?** Todo listo; él decidió local.
+- **¿Arreglar el responsivo a 400px?** Cuatro secciones se desbordan.
+- **¿Qué empresa se lleva a la exposición?** Almacenes Éxito ya entra limpio,
+  tiene benchmark sectorial y una historia DuPont redonda.
+- ⚠️ **Cargar un estado de un negocio suyo** sigue sin hacerse, y ahora se sabe
+  que **no se puede automatizar**: Resgaval no le reporta a Supersociedades.
+  Tendría que ser a mano.
 
 ---
 
@@ -400,20 +401,21 @@ decirlo antes de que lo pregunten.
 
 ```
 palpito/
-├── backend/motor/     modelos · validacion · indicadores · diagnostico
-│                      · salud · importacion · narrativa · proyectos
-│                      · benchmark · secciones
-├── backend/tests/     393 pruebas en 13 archivos
-├── backend/api.py     FastAPI: 20 rutas (guardar, borrar y fundir son nuevas)
-├── frontend/          index.html, sin frameworks, 7 módulos
-├── casos/             3 casos (ver arriba cuál no se toca)
-├── docs/DESPLIEGUE.md guía para Dokploy
-├── FORMULAS.md        §9 proyectos · §10 EVA · §11 benchmark
-│                      §8 los 6 errores del material del curso
-├── PRODUCT.md         qué es y para quién
-├── DESIGN.md          el sistema visual, escrito desde lo construido
-├── CRUCES-VISTOS.md   10 cruces · §8 tiene 2 fuentes · §9 y §10, una
-└── .env               🔴 la clave (NO se sube a git)
+├── backend/motor/       modelos · validacion · indicadores · diagnostico
+│                        · salud · importacion · narrativa · proyectos
+│                        · benchmark · secciones
+├── backend/herramientas/ supersociedades.py · construir_benchmark.py
+│                        (construyen las referencias; NO los usa la app)
+├── backend/tests/       445 pruebas en 14 archivos
+├── backend/api.py       FastAPI: 23 rutas
+├── frontend/            index.html, sin frameworks, 7 secciones
+├── casos/               3 casos del taller (ver cuál no se toca)
+├── referencias/         ciiu-471100.json — el benchmark del sector
+├── docs/DESPLIEGUE.md   guía para Dokploy
+├── FORMULAS.md          §8 los 6 errores del material del curso
+├── PRODUCT.md · DESIGN.md
+├── CRUCES-VISTOS.md     13 cruces
+└── .env                 🔴 la clave (NO se sube a git)
 ```
 
 ## Para levantar la aplicación
@@ -421,7 +423,14 @@ palpito/
 ```bash
 cd palpito/backend
 uvicorn api:app --reload      # → http://localhost:8000
-python -m pytest -q           # deben pasar 393
+python -m pytest -q           # deben pasar 445
+```
+
+Para reconstruir un sector del benchmark (tarda unos minutos, usa internet):
+
+```bash
+cd palpito/backend
+PYTHONIOENCODING=utf-8 python -m herramientas.construir_benchmark 4711.00 2024 "Comercio al por menor"
 ```
 
 ⚠️ Los servidores que levanta el asistente **mueren al cerrarse su sesión**. El

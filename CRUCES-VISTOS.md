@@ -324,3 +324,120 @@ existían en `modelos.py` desde siempre, pero **el importador no podía
 producirlas**, así que ningún balance real cuadraba jamás. Un campo legible que
 nadie puede escribir es tan inútil como uno escrito que nadie lee.
 **Las tres son del mismo código, así que cuentan como UNA fuente.**
+
+---
+
+## 11. Una etiqueta dice lo que dice por cómo EMPIEZA, no por lo que contiene
+
+**Fuentes independientes: 3** (Grupo Argos, Almacenes Éxito, y la taxonomía XBRL
+de la Superintendencia de Sociedades — tres emisores, tres formatos distintos)
+
+Es el cruce más fuerte que ha aparecido, porque las tres fuentes no se conocen
+entre sí y las tres fallan igual.
+
+**Grupo Argos** *(ya en §5)*: "pasivo no corriente" contiene "pasivo", y el
+total de pasivos no corrientes entraba como deuda financiera. 12.492.908 contra
+7.503.420 reales: **66 % de sobrestimación**.
+
+**Almacenes Éxito, 10-sep-2026**: para que los renglones del flujo de efectivo
+no se disfrazaran de resultados se prohibió toda etiqueta que contuviera
+`"actividades de operacion"`. Pero bajo NIIF la utilidad operacional **se llama**
+*"Ganancia por actividades de operación"*. La red atrapó al pez que debía dejar
+pasar, y con ella se cayeron el margen operacional, el margen neto, el ROE, el
+ROIC y la cobertura de intereses: **el 40 % del puntaje de salud** aparecía como
+"sin datos" sin que nada fallara.
+
+**La taxonomía de Supersociedades, 11-sep-2026**: al probar el diccionario del
+importador contra los conceptos del portal, *"Total de patrimonio y pasivos"*
+—que **es el activo total**, por el otro lado de la ecuación contable— entraba
+como patrimonio por contener esa palabra. Y *"Acciones propias en cartera"*
+entraba como cuentas por cobrar.
+
+**Lo que sugiere:** buscar una frase *dentro* de una etiqueta es una heurística
+que falla en las tres direcciones — de más, de menos y al revés. Lo que manda es
+**de qué ES la etiqueta**, y eso se decide por dónde empieza. Un renglón que
+empieza por "Ganancia" es un resultado aunque después nombre las actividades de
+operación; el del flujo de caja empieza por "Efectivo neto".
+
+⚠️ **Y hay un corolario que costó aparte:** cuando la fuente entrega un catálogo
+**cerrado** —una taxonomía, no texto libre— adivinar por subcadena no solo
+sobra: hace daño. Ahí se mapea por **nombre exacto**. Es la diferencia entre
+`importacion.py` (PDF, etiquetas libres, hay que adivinar) y
+`herramientas/supersociedades.py` (73 conceptos fijos, lista blanca).
+
+**Estado: arreglado en los tres.** Argos por el corte perezoso de los totales;
+Éxito por `_es_renglon_de_flujo`, que mira cómo empieza la etiqueta; la
+taxonomía por diccionario propio de nombre exacto. Pruebas fijan **las dos
+mitades** de cada uno: lo que debe entrar y lo que debe seguir fuera.
+
+---
+
+## 12. Un dato público puede llegar roto desde el origen, y no es culpa de quien lo lee
+
+**Fuentes independientes: 1** (el portal datos.gov.co / Superintendencia de
+Sociedades)
+
+⚠️ **Una sola fuente.** Se anota porque la forma de fallar es nueva.
+
+Al construir el benchmark sectorial, cuatro conceptos del estado de resultados
+no empataban con el diccionario: utilidad operacional, utilidad neta, utilidad
+antes de impuestos y gastos de administración. **Los cuatro que llevan tilde.**
+
+La causa no era de este lado. La cabecera dice `charset=utf-8`, los bytes son
+UTF-8 válidos, y aun así la vocal acentuada llega como `EF BF BD` — que es
+**U+FFFD, el carácter de "no pude leer esto", correctamente codificado**. O sea:
+el dato se deterioró antes de publicarse y el portal entrega el deterioro
+intacto. `"Ganancia (p<roto>rdida) por actividades de operaci<roto>n"`.
+
+**Lo que sugiere:** no se puede dar por hecho que una fuente oficial entregue el
+texto que dice entregar, ni tratarlo como un problema de decodificación propio.
+Y tampoco se puede dar por hecho que **siga** roto: si algún día lo arreglan, lo
+que se escriba hoy tiene que seguir funcionando.
+
+La salida fue comparar los dos lados por su **esqueleto ASCII** —se cae la vocal
+acentuada del nuestro y el rombo del suyo, y queda la misma cadena—, que aguanta
+las dos formas. Sigue siendo comparación exacta sobre la cadena entera, no por
+subcadena: una prueba verifica que **ningún par de conceptos colapse al mismo
+esqueleto**, que es lo único que la hace segura.
+
+⚠️ **Es el tercer tipo de deterioro visto en una fuente**, y los tres son
+distintos: el lector de PDF **pega** dos renglones *(§5, §9)*; el índice
+**suplanta** cifras con números de página *(§1)*; y aquí la fuente **pierde**
+caracteres. Conviene no asumir que el único enemigo es el que ya se conoce.
+
+---
+
+## 13. Un resumen puede perder justo aquello que se iba a medir
+
+**Fuentes independientes: 1** (el archivo "10.000 empresas más grandes del país")
+
+⚠️ **Una sola fuente.**
+
+Para el benchmark sectorial había un atajo tentador: ese archivo trae ya
+resumidos ingresos, ganancia, activos, pasivos y patrimonio de las 10.000
+empresas más grandes, con su CIIU. Siete indicadores salían de ahí sin tocar los
+19,6 millones de renglones del archivo detallado.
+
+Se calculó, y la mediana del sector dio esto:
+
+| | Mediana |
+|---|---|
+| Margen neto | **0,00 %** |
+| ROA | **0,00 %** |
+| ROE | **0,00 %** |
+
+No es que el comercio de alimentos no gane plata. Es que **el archivo trae las
+cifras en billones redondeadas a dos decimales**, así que a toda empresa que
+gane menos de 5.000 millones se le redondea la ganancia a cero. Sirve para
+ordenar por tamaño —para eso lo publican— y no sirve para nada que se divida.
+
+**Lo que sugiere:** la precisión de un dato no es un detalle técnico, es parte
+de para qué sirve. Y el modo de fallar es el peor posible: **no da error, da un
+número redondo**. Una mediana de 0,00 % se ve como un dato, no como un hueco.
+
+Es la misma enfermedad de §1 y §10 en otra forma: **un número bonito y falso**,
+que es exactamente lo que Pálpito existe para no producir. La diferencia es que
+esta vez la habríamos producido nosotros.
+
+**Estado: descartado el atajo.** El benchmark se construye desde el archivo
+detallado, que trae pesos exactos y además da 16 indicadores en vez de 7.
