@@ -42,6 +42,7 @@ from motor.proyectos import (
 )
 from motor.salud import puntaje_salud
 from motor.validacion import resumen, semaforo, validar
+from herramientas import supersociedades
 
 RAIZ = Path(__file__).resolve().parents[1]
 CASOS = RAIZ / "casos"
@@ -90,6 +91,10 @@ class EntradaEstados(BaseModel):
     balance: dict[str, list[float | None]] = Field(default_factory=dict)
     resultados: dict[str, list[float | None]] = Field(default_factory=dict)
     supuestos: dict = Field(default_factory=dict)
+    # De donde salieron las cifras cuando vinieron del portal y no de un
+    # archivo (fuente, NIT, cortes, fecha). Viaja con los estados para que un
+    # caso guardado en disco no pierda su procedencia.
+    procedencia: dict | None = None
 
 
 # --------------------------------------------------------------- utilidades
@@ -217,6 +222,8 @@ def guardar_caso(entrada: EntradaGuardar):
                  f"reemplazarlo, o cambiele el nombre a la empresa.")
 
     datos.pop("fusion", None)          # detalle de la union, no es un dato
+    if not datos.get("procedencia"):   # solo la traen las cargadas del portal
+        datos.pop("procedencia", None)
     with open(ruta, "w", encoding="utf-8") as fh:
         json.dump(datos, fh, ensure_ascii=False, indent=2)
     return {"id": nombre, "empresa": datos.get("empresa"),
@@ -498,6 +505,59 @@ def benchmark(entrada: EntradaBenchmark):
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
     return comparar(calcular_todos(ef), entrada.referencias)
+
+
+# ---------------------------------------------------------- por nombre/NIT
+#
+# La UNICA parte del API que toca internet, y solo cuando el usuario pulsa
+# "Buscar". El resto de la aplicacion -casos, PDF, benchmark- sigue leyendo del
+# disco: si el dia de la exposicion no hay wifi, esto avisa y lo demas anda.
+#
+# Aqui no hay inteligencia artificial y es mejor que no la haya: se pide un NIT
+# y llega la cifra exacta, siempre la misma, auditable.
+
+
+class EntradaNit(BaseModel):
+    nit: str = Field(min_length=5, max_length=15, pattern=r"^[0-9]+$")
+    razon_social: str = ""
+
+
+def _sin_portal(exc: Exception) -> HTTPException:
+    return HTTPException(
+        503, "No se pudo consultar el portal de datos abiertos (datos.gov.co). "
+             f"Revise la conexión a internet e intente de nuevo. Detalle: {exc}")
+
+
+@app.get("/api/supersociedades/buscar", tags=["importacion"])
+def buscar_empresa(q: str = ""):
+    """Busca empresas por razon social en el directorio de Supersociedades.
+
+    Devuelve hasta 25 coincidencias con NIT. Las que cotizan en bolsa NO
+    aparecen: le reportan a la Superfinanciera y para ellas sigue el PDF.
+    """
+    if len(q.strip()) < 2:
+        return []
+    try:
+        return supersociedades.buscar_empresas(q, supersociedades.traer_del_portal)
+    except Exception as exc:
+        raise _sin_portal(exc) from exc
+
+
+@app.post("/api/supersociedades/cargar", tags=["importacion"])
+def cargar_por_nit(entrada: EntradaNit):
+    """Descarga los ultimos dos cortes anuales de una empresa y devuelve sus
+    estados en el formato de los casos, con su procedencia adentro.
+
+    Dos cortes son tres anios. No analiza nada: los estados vuelven al
+    navegador y entran por el mismo camino que un archivo.
+    """
+    try:
+        return supersociedades.descargar_empresa(
+            entrada.nit, supersociedades.traer_del_portal, entrada.razon_social)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    except Exception as exc:
+        raise _sin_portal(exc) from exc
 
 
 # ------------------------------------------------- evaluacion de proyectos

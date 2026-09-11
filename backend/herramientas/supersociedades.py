@@ -62,6 +62,7 @@ from motor.modelos import EstadosFinancieros
 
 PORTAL = "https://www.datos.gov.co/resource"
 DATASET_EMPRESAS = "6cat-2gcs"      # 10.000 empresas mas grandes: NIT -> CIIU
+DATASET_DIRECTORIO = "dd55-74ss"    # Sujetos obligados: razon social -> NIT (161.771)
 DATASET_BALANCE = "pfdp-zks5"       # Estado de situacion financiera
 DATASET_RESULTADOS = "prwj-nzxa"    # Estado de resultado integral
 
@@ -115,6 +116,12 @@ CONCEPTOS_RESULTADOS: dict[str, str] = {
 CONCEPTOS_SUMADOS: dict[str, str] = {
     "Gastos de administración": "gastos_operacionales",
     "Gastos de ventas": "gastos_operacionales",
+    # Bajo NIIF plenas el gasto de vender se llama asi. D1 S.A.S. reporta un
+    # billon de pesos por este concepto y CERO en "Gastos de ventas": sin esta
+    # linea su utilidad operacional quedaba descuadrada en 935 mil millones, y
+    # con ella el descuadre baja a 8.700 millones, que son exactamente "Otros
+    # ingresos" menos "Otros gastos". Una empresa puede traer las dos: se suman.
+    "Costos de distribución": "gastos_operacionales",
 }
 
 
@@ -352,6 +359,160 @@ def descargar_sector(ciiu: str, anio: int, traer, nombre: str = "",
             avisar(i, len(empresas), e.get("raz_n_social", ""))
 
     return construir_referencias(estados, ciiu, anio, nombre)
+
+
+# ------------------------------------------------------- una sola empresa
+#
+# Lo mismo que hace el benchmark con 155 empresas, hecho con una: se escribe el
+# nombre, se escoge el NIT y los estados entran por el mismo camino que un
+# archivo. NO hay inteligencia artificial aqui, y es mejor que no la haya: es
+# una consulta determinista -se pide un NIT y llega la cifra exacta, siempre la
+# misma, auditable-. Meter un modelo reabriria justo el riesgo que el proyecto
+# lleva meses cerrando.
+#
+# Dos limites que hay que decir antes de usarlo:
+# - Las que cotizan en bolsa NO estan (Exito, Ecopetrol, Argos, Nutresa,
+#   Bancolombia le reportan a la Superfinanciera). Para esas sigue el PDF.
+# - Las que no le reportan a Supersociedades tampoco: la mayoria de las pymes.
+#   Para esas sigue el Excel o la digitacion.
+#
+# Es la UNICA parte de la aplicacion que toca internet, y lo hace solo cuando
+# el usuario pulsa "Buscar". Si no hay red, avisa y todo lo demas sigue
+# funcionando: el dia de la exposicion no puede depender del wifi del salon.
+
+MAX_RESULTADOS = 25
+CORTES_A_TRAER = 2   # dos cortes anuales -> tres anios, lo que pide una tendencia
+
+
+def texto_de_busqueda(texto: str) -> str:
+    """Deja el texto listo para el LIKE del portal: mayusculas y sin comillas.
+
+    La razon social en el directorio va en MAYUSCULAS y casi siempre sin
+    tildes; a las vocales acentuadas del usuario se les QUITA la tilde -no se
+    dejan caer, como hace `clave`- para que "almacén" encuentre "ALMACEN".
+    """
+    import unicodedata
+    sin_tildes = "".join(c for c in unicodedata.normalize("NFKD", texto)
+                         if not unicodedata.combining(c))
+    limpio = "".join(c for c in sin_tildes if c.isascii() and c not in "'\"\%_;")
+    return " ".join(limpio.upper().split())
+
+
+def url_buscar_empresas(texto: str, limite: int = MAX_RESULTADOS) -> str:
+    """Busca por razon social. Se agrupa por NIT porque el directorio trae una
+    fila por empresa y por anio de corte, y sin agrupar "D1" salia cinco veces."""
+    t = texto_de_busqueda(texto)
+    donde = quote(f"upper(razon_social) like '%{t}%'")
+    select = quote("nit,razon_social,max(fecha_corte) AS corte")
+    grupo = quote("nit,razon_social")
+    return (f"{PORTAL}/{DATASET_DIRECTORIO}.json?$where={donde}&$select={select}"
+            f"&$group={grupo}&$order=razon_social&$limit={limite}")
+
+
+def url_cortes(nit: str) -> str:
+    """Los cortes en que la empresa reporto balance. Tambien vienen cortes de
+    junio; se filtran despues, porque un semestre no es un anio."""
+    donde = quote(f"nit='{nit}'")
+    select = quote("fecha_corte,count(*) AS n")
+    return (f"{PORTAL}/{DATASET_BALANCE}.json?$where={donde}&$select={select}"
+            f"&$group=fecha_corte&$order=fecha_corte")
+
+
+def buscar_empresas(texto: str, traer) -> list[dict]:
+    """Devuelve [{nit, razon_social}] para lo que el usuario escribio."""
+    t = texto_de_busqueda(texto)
+    if len(t) < 2:
+        return []
+    filas = _pedir(url_buscar_empresas(t), traer)
+    vistos: set[str] = set()
+    resultado = []
+    for f in filas:
+        nit = str(f.get("nit", "")).strip()
+        if not nit or nit in vistos:
+            continue
+        vistos.add(nit)
+        resultado.append({"nit": nit, "razon_social": str(f.get("razon_social", "")).strip()})
+    return resultado
+
+
+def anios_con_balance(nit: str, traer) -> list[int]:
+    """Anios de corte a 31 de diciembre en que hay balance, de viejo a nuevo."""
+    filas = _pedir(url_cortes(nit), traer)
+    anios = []
+    for f in filas:
+        corte = str(f.get("fecha_corte", ""))
+        if corte[4:10] == "-12-31" and corte[:4].isdigit():
+            anios.append(int(corte[:4]))
+    return sorted(set(anios))
+
+
+def descargar_empresa(nit: str, traer, razon_social: str = "",
+                      cortes: int = CORTES_A_TRAER) -> dict:
+    """Trae los ultimos cortes anuales de una empresa y los une en un solo juego.
+
+    Cada corte trae dos anios (actual y anterior); con dos cortes salen tres,
+    que es lo que hace falta para leer una tendencia. El anio repetido se toma
+    del corte MAS RECIENTE: entre dos versiones de la misma cifra, la que la
+    empresa reexpreso despues es la que ella misma da por buena.
+
+    Devuelve el mismo formato de los casos, con `procedencia` adentro: de donde
+    salio, que NIT, que cortes y en que fecha se descargo. Una cifra que no se
+    puede sustentar ante quien pregunte no sirve para analizar nada.
+    """
+    from motor.importacion import fundir_estados
+
+    anios = anios_con_balance(nit, traer)
+    if not anios:
+        raise ValueError(
+            "Esa empresa no tiene estados financieros en Supersociedades. Si cotiza "
+            "en bolsa le reporta a la Superfinanciera: cargue el PDF de su informe anual.")
+    escogidos = anios[-cortes:]
+
+    unido = None
+    for anio in escogidos:
+        bal = _pedir(url_de_estados(DATASET_BALANCE, nit, anio), traer)
+        res = _pedir(url_de_estados(DATASET_RESULTADOS, nit, anio), traer)
+        if not bal:
+            continue
+        juego = armar_estados(bal, res, razon_social, str(anio))
+        if not juego["balance"]:
+            continue
+        unido = juego if unido is None else fundir_estados(unido, juego, conservar="nuevo")
+
+    if unido is None:
+        raise ValueError("El portal devolvió los cortes pero no las cifras. Intente de nuevo.")
+
+    unido.pop("fusion", None)
+    unido["procedencia"] = {
+        "fuente": FUENTE,
+        "nit": nit,
+        "cortes": [f"{a}-12-31" for a in escogidos],
+        "descargado": date.today().isoformat(),
+        "nota": ("Estados separados (no consolidados) reportados por la empresa a la "
+                 "Superintendencia de Sociedades, en miles de pesos. La deuda "
+                 "financiera no se importa: bajo NIIF va mezclada con derivados."),
+    }
+    return unido
+
+
+def traer_del_portal(url: str) -> list[dict]:
+    """La consulta REAL al portal, con un reintento y una pausa de cortesia.
+
+    Es la unica funcion de este modulo que toca internet. Todo lo demas la
+    recibe inyectada, para poder probarse sin red.
+    """
+    import time
+    import urllib.request
+
+    for intento in range(3):
+        try:
+            with urllib.request.urlopen(url, timeout=60) as r:
+                return json.loads(r.read().decode("utf-8"))
+        except Exception:
+            if intento == 2:
+                raise
+            time.sleep(2 * (intento + 1))
+    return []
 
 
 def guardar(sector: Sector, carpeta) -> str:

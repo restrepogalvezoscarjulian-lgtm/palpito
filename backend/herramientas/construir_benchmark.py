@@ -9,28 +9,13 @@ lee el archivo que queda, y nunca toca internet.
 
 from __future__ import annotations
 
-import json
 import pathlib
 import sys
-import time
-import urllib.request
 
 from herramientas.supersociedades import descargar_sector, guardar
+from herramientas.supersociedades import traer_del_portal as traer
 
 REFERENCIAS = pathlib.Path(__file__).resolve().parents[2] / "referencias"
-
-
-def traer(url: str) -> list[dict]:
-    """Una consulta al portal, con un reintento y una pausa de cortesia."""
-    for intento in range(3):
-        try:
-            with urllib.request.urlopen(url, timeout=60) as r:
-                return json.loads(r.read().decode("utf-8"))
-        except Exception:
-            if intento == 2:
-                raise
-            time.sleep(2 * (intento + 1))
-    return []
 
 
 def main(argv: list[str]) -> int:

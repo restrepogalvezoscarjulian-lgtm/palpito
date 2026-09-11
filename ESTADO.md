@@ -1,4 +1,4 @@
-# Estado — 11 de septiembre de 2026
+# Estado — 11 de septiembre de 2026 (tarde)
 
 ## Dónde vamos
 
@@ -8,33 +8,59 @@ financieros: **ahora también construye la vara con la que los mide**.
 
 Verificado ahora, no de memoria:
 
-- **`445 passed`** — la suite completa (ayer en la mañana eran 393)
+- **`463 passed`** — la suite completa (ayer en la mañana eran 393)
+- **Se puede cargar una empresa escribiendo su nombre**, sin PDF. Se escribe
+  "d1", se escoge el NIT y entran tres años desde Supersociedades, con su
+  procedencia en pantalla. Probado en Chrome headless con D1 y con Ara
+  (Jerónimo Martins). **Sin IA**: consulta determinista al portal.
 - **Almacenes Éxito entra limpio y completo**: 0 errores de calidad, puntaje
   65,0, y las cinco dimensiones de salud evaluadas. Ayer la rentabilidad salía
   "sin datos".
 - **El benchmark sectorial se calcula solo.** Un sector construido: CIIU 4711
   (comercio al por menor con surtido de alimentos), corte 2024, **155 empresas**,
   16 indicadores con mediana y cuartiles. Se escoge de un desplegable en la app.
-- 🔴 **4 commits sin subir.** `main...origin/main [ahead 4]`. Lo de estos dos
-  días existe en un solo disco duro.
+- ✅ Los 5 commits pendientes se subieron el 11-sep por la tarde.
+- 🔴 **La carga por nombre está sin commit** (ver *Lo primero al retomar*).
+- 📅 **La exposición es la semana del 14 al 18 de septiembre** (respondido el
+  11-sep). Cabe pulir y ensayar; no abrir frentes grandes.
 - <https://github.com/restrepogalvezoscarjulian-lgtm/palpito> (MIT)
 
 ---
 
 ## Lo primero al retomar
 
-### 1. Preguntarle a Oscar si se hace push
+### 1. Commit y push de la carga por nombre, si Oscar dice que sí
 
-Son **4 commits**: `11f74fe`, `cfabb3c`, `e62f9a2`, `7e2defe`, `66428ab`,
-`fa0a38c` (los cuatro últimos sin subir). Ha dicho que sí las dos veces que se
-le preguntó, **pero sigue preguntándose cada vez**. No es automático.
+Preguntar cada vez; no es automático. Tocó `herramientas/supersociedades.py`,
+`api.py`, `frontend/index.html`, `tests/test_cargar_por_nit.py` (18 pruebas
+nuevas) y este archivo.
 
-### 2. La pregunta que quedó abierta y a medio investigar
+### 2. La carga por nombre/NIT: construida el 11-sep por la tarde
 
-Oscar preguntó el 11-sep: **¿se puede cargar una empresa escribiendo su nombre,
-en vez de subirle un PDF?** Se investigó y **SÍ se puede**. Falta construirlo.
+Oscar preguntó: **¿se puede cargar una empresa escribiendo su nombre, en vez de
+subirle un PDF?** Sí, y ya está hecho:
 
-Lo verificado:
+- Debajo de la zona de soltar archivo hay un cuadro *"O busque la empresa por
+  su nombre"*. `GET /api/supersociedades/buscar?q=` busca en el directorio de
+  sujetos obligados (`dd55-74ss`), agrupando por NIT porque el directorio trae
+  una fila por empresa y por año. `POST /api/supersociedades/cargar {nit}` trae
+  los **dos últimos cortes de diciembre** y los une con `fundir_estados` → tres
+  años. El resultado entra por `adoptarEstados()`, el mismo camino de un PDF.
+- **`procedencia`** viaja con los estados (fuente, NIT, cortes, fecha, nota de
+  "estados separados, en miles") y se muestra en *Calidad de los datos*. Se
+  conserva al guardar el caso.
+- **Es la ÚNICA parte de la app que toca internet**, y solo al pulsar Buscar.
+  Sin red devuelve 503 con aviso y todo lo demás sigue andando (hay prueba).
+- Hallazgo de paso: **D1 reporta "Costos de distribución" (1 billón) y cero en
+  "Gastos de ventas"**. Se sumó al diccionario; el descuadre de la utilidad
+  operacional bajó de 935 mil millones a 8.700 millones (= otros ingresos −
+  otros gastos). ⚠️ El benchmark `ciiu-471100.json` se construyó ANTES de este
+  arreglo; no cambia medianas de indicadores publicados, pero convendría
+  reconstruirlo.
+- ⚠️ "almacenes éxito" devuelve **Almacenes Éxito Inversiones S.A.S.**, una
+  filial. La matriz cotiza y no está. La pantalla lo advierte.
+
+Lo verificado antes de construirlo:
 
 - El directorio `dd55-74ss` ("Sujetos obligados") tiene **161.771 empresas con
   NIT y razón social**. Buscar "D1 S.A.S" devuelve el NIT 900276962.
@@ -134,9 +160,12 @@ y 28 en resultados**. Adivinar ahí no solo sobra: hace daño.
 activo. Y con cuartiles se puede decir *"está en el cuartil superior del
 sector"*, que es como habla un analista.
 
-**La aplicación NUNCA consulta internet.** Lee `referencias/` del disco.
-Reconstruir un sector es un acto deliberado que se corre aparte. El día de la
-exposición no puede depender del wifi del salón.
+**La aplicación no consulta internet, con UNA excepción.** El benchmark lee
+`referencias/` del disco; reconstruir un sector es un acto deliberado que se
+corre aparte. La excepción, desde el 11-sep, es la **carga por nombre/NIT**:
+toca el portal solo cuando el usuario pulsa *Buscar*, y si no hay red avisa y
+todo lo demás sigue andando. El día de la exposición no puede depender del wifi
+del salón: lo que se va a mostrar debe estar cargado o guardado como caso antes.
 
 **Las referencias guardan su procedencia** —año, cuántas empresas, fuente y
 fecha de descarga— y se muestra en pantalla. Una referencia que no se puede
@@ -378,13 +407,12 @@ balance apareció cada renglón. Adivinar sobrestimaría el endeudamiento.
 ## 🔴 Pendientes que son de Oscar, no míos
 
 - **¿Se hace push de los 4 commits?** Preguntar cada vez.
-- **¿Cuándo es la exposición?** 🔴 **Sin respuesta desde el 2 de septiembre**, y
-  se le ha preguntado cuatro veces. **Es el dato que decide qué se construye y
-  qué no.**
+- ✅ **La exposición es la semana del 14 al 18 de septiembre.** Día exacto sin
+  decir.
 - **¿Qué exige la rúbrica?** Sin respuesta desde el 29 de agosto.
 - **¿Se le entrega el repositorio al profesor, y cómo?** Sin definir.
-- **¿Se construye la carga de empresas por nombre/NIT?** Investigado y viable
-  (ver *Lo primero al retomar*). Falta su visto bueno y saber la fecha.
+- ✅ **La carga por nombre/NIT ya está construida** (11-sep tarde). Falta su
+  commit.
 - **¿Se construyen más sectores de benchmark?** Hay uno. El comando es:
   `python -m herramientas.construir_benchmark <CIIU> <año> "<nombre>"`
 - **¿Desplegar en `finanzas.torbex.com.co`?** Todo listo; él decidió local.
@@ -405,9 +433,10 @@ palpito/
 │                        · salud · importacion · narrativa · proyectos
 │                        · benchmark · secciones
 ├── backend/herramientas/ supersociedades.py · construir_benchmark.py
-│                        (construyen las referencias; NO los usa la app)
-├── backend/tests/       445 pruebas en 14 archivos
-├── backend/api.py       FastAPI: 23 rutas
+│                        (referencias sectoriales + carga por NIT; el API
+│                        usa supersociedades.py para buscar y descargar)
+├── backend/tests/       463 pruebas en 15 archivos
+├── backend/api.py       FastAPI: 25 rutas
 ├── frontend/            index.html, sin frameworks, 7 secciones
 ├── casos/               3 casos del taller (ver cuál no se toca)
 ├── referencias/         ciiu-471100.json — el benchmark del sector
@@ -423,7 +452,7 @@ palpito/
 ```bash
 cd palpito/backend
 uvicorn api:app --reload      # → http://localhost:8000
-python -m pytest -q           # deben pasar 445
+python -m pytest -q           # deben pasar 463
 ```
 
 Para reconstruir un sector del benchmark (tarda unos minutos, usa internet):

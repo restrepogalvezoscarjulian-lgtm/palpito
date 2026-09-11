@@ -361,6 +361,22 @@
   .paginas-pdf em{display:block;margin-top:7px;font-size:var(--t-micro);
     color:var(--tenue);font-style:normal;line-height:1.5}
 
+  /* Buscar la empresa por su nombre, sin archivo. Va debajo de la zona de
+     soltar, como segunda puerta: la primera sigue siendo el archivo, porque
+     las de bolsa y las pymes no estan en Supersociedades. */
+  .por-nombre{border:1px solid var(--borde);border-radius:var(--r);padding:22px 20px;
+    margin-top:14px;color:var(--suave)}
+  .por-nombre b{color:var(--texto);display:block;margin-bottom:5px;font-size:var(--t-medio)}
+  .por-nombre .nota{font-size:var(--t-mini);color:var(--tenue);line-height:1.55;max-width:70ch}
+  .por-nombre form{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+  .por-nombre form input{flex:1;min-width:200px;padding:9px 12px;font-size:var(--t-cuerpo)}
+  .resultados-nombre{margin-top:12px;display:flex;flex-direction:column;gap:4px}
+  .resultados-nombre button{display:flex;justify-content:space-between;gap:12px;
+    width:100%;text-align:left;padding:9px 12px;font-size:var(--t-mini);
+    border-radius:var(--r-chico)}
+  .resultados-nombre button .nit{font-family:var(--mono);color:var(--tenue);white-space:nowrap}
+  .resultados-nombre .vacio{font-size:var(--t-mini);color:var(--tenue);padding:8px 2px;line-height:1.55}
+
   .imp-cabeza{display:flex;justify-content:space-between;align-items:baseline;
     gap:14px;flex-wrap:wrap;margin-bottom:12px}
   .imp-cabeza h3{margin:0;font-size:var(--t-medio);font-weight:600}
@@ -1056,11 +1072,23 @@ function seccionCalidad(a){
         </div>`).join("")}
     </div>`;
 
+  /* De dónde salieron las cifras, cuando vinieron del portal y no de un
+     archivo. Una cifra que no se puede sustentar ante quien pregunte no sirve
+     para analizar nada, así que se dice antes de mostrar el semáforo. */
+  const proc = datosCaso?.procedencia;
+  const bloqueProcedencia = !proc ? "" : `
+    <div class="aviso-fuente" id="procedenciaEmpresa">
+      <b>Fuente:</b> Superintendencia de Sociedades, vía datos.gov.co ·
+      <b>NIT</b> ${esc(proc.nit)} · cortes <b>${(proc.cortes || []).map(esc).join(", ")}</b> ·
+      descargado el ${esc(proc.descargado || "")}.<br>${esc(proc.nota || "")}
+    </div>`;
+
   return `
   <section>
     <div class="regla"><h2>Calidad de los datos</h2></div>
     <p class="leyenda">Esto se verifica <em>antes</em> de calcular cualquier indicador.
       Un ratio sobre datos inconsistentes es un número bonito y falso.</p>
+    ${bloqueProcedencia}
     <div class="tarjeta semaforo ${v.semaforo}">
       <h3>${titulos[v.semaforo]}</h3>
       <div class="conteos">
@@ -1319,8 +1347,110 @@ function pintarSoltar(mensaje){
           Escriba un rango (<code>10-13</code>) solo si quiere forzar otro.</em>
       </label>
     </div>
+    <div class="por-nombre">
+      <b>O busque la empresa por su nombre</b>
+      <div class="nota">Sociedades que le reportan a la Superintendencia de Sociedades:
+        se traen sus estados de los últimos dos cortes anuales, tal como ella los declaró.
+        <b style="display:inline;font-size:inherit">Las que cotizan en bolsa no están</b>
+        —Éxito, Ecopetrol, Argos, Nutresa, Bancolombia le reportan a la Superfinanciera—;
+        para esas, cargue el PDF de arriba.</div>
+      <form id="formNombre" autocomplete="off">
+        <input type="search" id="textoNombre" placeholder="D1, Jerónimo Martins, Filtros Partmo…"
+          aria-label="Nombre de la empresa">
+        <button type="submit" class="primario">Buscar</button>
+      </form>
+      <div class="resultados-nombre" id="resultadosNombre"></div>
+    </div>
     ${mensaje || ""}`;
   conectarSoltar();
+  conectarBusqueda();
+}
+
+/* ------------------------------------------------ cargar por nombre / NIT
+   Aquí NO hay inteligencia artificial, y es mejor que no la haya: se escribe
+   el nombre, se escoge el NIT y se pide la cifra exacta al portal de datos
+   abiertos. Siempre la misma, auditable. Es la única parte de la aplicación
+   que toca internet, y solo cuando se pulsa Buscar: si no hay red, avisa y
+   todo lo demás sigue funcionando. */
+
+function conectarBusqueda(){
+  const form = $("#formNombre");
+  if(!form) return;
+  form.addEventListener("submit", e => { e.preventDefault(); buscarPorNombre(); });
+}
+
+async function buscarPorNombre(){
+  const q = ($("#textoNombre")?.value || "").trim();
+  const caja = $("#resultadosNombre");
+  if(q.length < 2){ caja.innerHTML = `<div class="vacio">Escriba al menos dos letras.</div>`; return; }
+  caja.innerHTML = `<div class="vacio">Buscando en el directorio de Supersociedades…</div>`;
+  let r;
+  try{
+    r = await fetch(`/api/supersociedades/buscar?q=${encodeURIComponent(q)}`);
+  }catch(e){
+    return caja.innerHTML = `<div class="aviso">No se pudo consultar el portal. ${esc(e.message)}</div>`;
+  }
+  if(!r.ok){
+    const err = await r.json().catch(() => ({detail:"Error desconocido"}));
+    return caja.innerHTML = `<div class="aviso">${esc(err.detail)}</div>`;
+  }
+  const lista = await r.json();
+  if(!lista.length){
+    return caja.innerHTML = `<div class="vacio">Ninguna sociedad con ese nombre le reporta a
+      Supersociedades. Si cotiza en bolsa, le reporta a la Superfinanciera: cargue el PDF.
+      Si es una pyme que no está obligada a reportar, cargue el Excel o digite los datos.</div>`;
+  }
+  caja.innerHTML = lista.map(e => `
+    <button type="button" data-nit="${esc(e.nit)}" data-razon="${esc(e.razon_social)}">
+      <span>${esc(e.razon_social)}</span><span class="nit">NIT ${esc(e.nit)}</span>
+    </button>`).join("");
+  caja.querySelectorAll("button").forEach(b =>
+    b.addEventListener("click", () => cargarPorNit(b.dataset.nit, b.dataset.razon)));
+}
+
+async function cargarPorNit(nit, razon){
+  $("#importador").innerHTML = `<div class="cargando">Trayendo los estados de ${esc(razon)} desde Supersociedades…</div>`;
+  let r;
+  try{
+    r = await fetch("/api/supersociedades/cargar", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({nit, razon_social: razon}),
+    });
+  }catch(e){
+    return pintarSoltar(`<div class="tarjeta semaforo rojo" style="margin-top:14px">
+      <h3>No se pudo consultar el portal</h3><div>${esc(e.message)}</div></div>`);
+  }
+  if(!r.ok){
+    const err = await r.json().catch(() => ({detail:"Error desconocido"}));
+    return pintarSoltar(`<div class="tarjeta semaforo rojo" style="margin-top:14px">
+      <h3>No se pudieron traer los estados</h3><div>${esc(err.detail)}</div></div>`);
+  }
+  const recien = await r.json();
+  /* Un nombre propio en vez de la razón social en mayúsculas del registro. */
+  recien.empresa = recien.empresa || razon;
+  await adoptarEstados(recien);
+}
+
+/* Lo que pasa cuando unos estados nuevos —de un archivo o del portal— quedan
+   listos: entran al desplegable con su nombre, se analizan y se abre el editor. */
+async function adoptarEstados(recien){
+  datosCaso = recien;
+  $("#importador").classList.remove("abierto");
+  $("#btnImportar").textContent = "Cargar archivo";
+  tablaImportada = null;
+
+  const id = `cargado-${++nCargados}`;
+  casosCargados.set(id, {
+    id,
+    empresa: datosCaso.empresa || "Empresa importada",
+    datos: structuredClone(datosCaso),
+  });
+  pintarSelectorCasos();
+  $("#selectorCaso").value = id;
+  actualizarBotonGuardar();
+
+  await analizar();
+  pintarEditor();
 }
 
 function conectarSoltar(){
@@ -1641,32 +1771,16 @@ async function usarImportado(){
     recien = await rf.json();
   }
 
-  datosCaso = recien;
-  $("#importador").classList.remove("abierto");
-  $("#btnImportar").textContent = "Cargar archivo";
+  /* Se suelta la tabla del archivo que se acaba de usar (adoptarEstados lo
+     hace). Sin esto, volver a pulsar "Cargar archivo" mostraba la revisión del
+     archivo ANTERIOR en vez de dejar escoger uno nuevo, y parecía que la
+     aplicación no aceptara más de un archivo.
 
-  /* Se suelta la tabla del archivo que se acaba de usar. Sin esto, volver a
-     pulsar "Cargar archivo" mostraba la revisión del archivo ANTERIOR en vez
-     de dejar escoger uno nuevo, y parecía que la aplicación no aceptara más de
-     un archivo. */
-  tablaImportada = null;
-
-  /* La empresa cargada entra al desplegable con su nombre. Antes aquí se
+     La empresa cargada entra al desplegable con su nombre. Antes aquí se
      dejaba el selector en blanco, así que la empresa quedaba analizada pero
      sin figurar en ninguna parte, y devolverse al caso del taller obligaba a
      volver a subir el archivo. */
-  const id = `cargado-${++nCargados}`;
-  casosCargados.set(id, {
-    id,
-    empresa: datosCaso.empresa || "Empresa importada",
-    datos: structuredClone(datosCaso),
-  });
-  pintarSelectorCasos();
-  $("#selectorCaso").value = id;
-  actualizarBotonGuardar();
-
-  await analizar();
-  pintarEditor();
+  await adoptarEstados(recien);
 
   // Si venían varios archivos, el siguiente entra solo por la misma revisión.
   if(!siguienteEnCola()){ enTanda = false; posicionEnTanda = 0; }
