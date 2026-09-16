@@ -441,3 +441,33 @@ esta vez la habríamos producido nosotros.
 
 **Estado: descartado el atajo.** El benchmark se construye desde el archivo
 detallado, que trae pesos exactos y además da 16 indicadores en vez de 7.
+
+## 14. El umbral de la bibliografía castiga al modelo de negocio que mejor rinde
+
+**Fuentes independientes: 2** (la cartilla del curso y los estados reales de
+D1 y Primax en Supersociedades)
+
+La cartilla dice que una razón corriente menor a 1 es "problemas de liquidez".
+Pálpito lo aplica y el puntaje lo castiga. Luego entraron dos empresas reales:
+
+| | Razón corriente | Ciclo de caja | ROE | Puntaje |
+|---|---|---|---|---|
+| D1 (16-sep-2026) | 0,67 | −85 días | 99 % | 54,4 (Frágil) |
+| Primax Colombia | 1,05 | 3 días | 22 % | 73,1 |
+| Almacenes Éxito | — | −25 días | 9,4 % | 65,0 |
+
+D1 es la que más le rinde al socio y la peor puntuada. Su razón corriente es
+baja **porque** su ciclo de caja es negativo: cobra de contado y paga a 149
+días, así que el pasivo corriente es grande a propósito. La misma cifra que la
+bibliografía lee como riesgo es, en un *hard discount*, la fuente de la
+rentabilidad.
+
+**Lo que sugiere:** un umbral fijo de un libro describe una empresa promedio,
+no un modelo de negocio. El puntaje no está mal —mide lo que la bibliografía
+mide—, pero el analista tiene que decir *por qué* la cifra es la que es antes
+de darle la nota. Es la misma lección de §11 en otro plano: manda el contexto
+de la cifra, no la cifra.
+
+**Sospecha sin comprobar:** que el puntaje debería ponderar la liquidez con el
+ciclo de caja (una razón corriente baja con ciclo negativo no debería castigar
+igual que con ciclo positivo). No se tocó antes de la exposición.
