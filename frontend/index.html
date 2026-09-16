@@ -1174,6 +1174,27 @@ function sello(modelo){
     · sobre cifras verificadas por el motor</div>`;
 }
 
+/* Lo que la IA ya redactó se recuerda por empresa mientras dure la pestaña.
+   Antes, cambiar de módulo y volver borraba el diagnóstico y había que pedirlo
+   otra vez (unos 9 segundos). La llave incluye las cifras: si se editan los
+   datos y se recalcula, el texto viejo ya no aplica y no se reutiliza. */
+const memoriaIA = new Map();
+const llaveIA = () => datosCaso ? JSON.stringify([datosCaso.empresa, datosCaso.periodos,
+                                                  datosCaso.balance, datosCaso.resultados]) : "";
+
+function recordarIA(destino, html){
+  const k = llaveIA(); if(!k) return;
+  const m = memoriaIA.get(k) || {}; m[destino] = html; memoriaIA.set(k, m);
+}
+
+function restaurarIA(){
+  const m = memoriaIA.get(llaveIA()); if(!m) return;
+  for(const [destino, html] of Object.entries(m)){
+    const el = $(destino); if(!el) continue;
+    el.className = "prosa"; el.innerHTML = html;
+  }
+}
+
 async function pedirIA(ruta, cuerpo, destino, textoCargando){
   const salida = $(destino);
   salida.className = "prosa apagado";
@@ -1198,6 +1219,7 @@ async function pedirIA(ruta, cuerpo, destino, textoCargando){
     if(!d.disponible){ salida.textContent = d.motivo; return; }
     salida.className = "prosa";
     salida.innerHTML = md(d.texto) + sello(d.modelo);
+    recordarIA(destino, salida.innerHTML);
   }catch(e){
     salida.className = "prosa";
     salida.innerHTML = `<span style="color:var(--rojo)">No se pudo obtener la respuesta: ${esc(e.message)}</span>`;
@@ -1205,6 +1227,7 @@ async function pedirIA(ruta, cuerpo, destino, textoCargando){
 }
 
 function conectarIA(){
+  restaurarIA();
   const btnN = $("#btnNarrar");
   if(btnN) btnN.addEventListener("click", () =>
     pedirIA("/api/narrar", {estados: datosCaso}, "#salidaIA", "Redactando…"));
