@@ -1,4 +1,4 @@
-# Estado — 11 de septiembre de 2026 (noche)
+# Estado — 16 de septiembre de 2026, antes de la exposición
 
 ## Dónde vamos
 
@@ -8,7 +8,13 @@ financieros: **ahora también construye la vara con la que los mide**.
 
 Verificado ahora, no de memoria:
 
-- **`490 passed`** — la suite completa (ayer en la mañana eran 393)
+- **`490 passed`** — la suite completa. Verificado el 16-sep a las 5 p. m.: D1 y
+  Éxito entran limpias, benchmark compara 26 indicadores, calculadora reproduce
+  la cartilla, IA redacta en ~9 s.
+- **Hay una guía de la exposición** con los 8 módulos y los 33 indicadores
+  explicados: <https://claude.ai/code/artifact/3c783cc0-dcd3-4c3b-a9cc-715668c2ef8c>
+  (documento de claude.ai; no está en el repo).
+- **El texto de la IA ya se conserva al cambiar de módulo** (commit `e0773ce`).
 - **Los dos módulos de la cartilla están cubiertos.** 33 indicadores desde los
   estados (se agregaron GAF, EBITDA, margen EBITDA, CAPEX e intensidad) y un
   módulo nuevo, *Equilibrio y apalancamiento*, con punto de equilibrio, GAO,
@@ -34,12 +40,39 @@ Verificado ahora, no de memoria:
 
 ## Lo primero al retomar
 
-### 1. No hay nada pendiente de código
+### 1. Cómo le fue en la exposición (16-sep, 6 p. m.)
+
+Preguntar qué preguntaron, qué falló y qué faltó. Eso decide lo que sigue.
+
+### 1b. Empresas probadas y listas para usar por nombre
+
+| Buscar | Empresa | Puntaje | Historia |
+|---|---|---|---|
+| `primax colombia` | PRIMAX COLOMBIA S.A. | 73,1, 0 errores | Lo opuesto a Éxito: margen 1,4 %, rotación 4,96, ROE 22 % |
+| `d1` | D1 S.A.S. | 54,4 | Ciclo de caja −85 d, liquidez 0,67, ROE 99 % (cruce §14) |
+| `jeronimo martins` | Ara. **"Tiendas Ara" NO aparece**: se busca la razón social, no la marca | 37,3 | |
+| `filtros partmo` | Competidor de Torbex. 2 errores de encadenamiento en 2023 (de la empresa) | 61,9 | 115 d de inventario, ROE 0,1 % |
+| `zeuss` | ZEUSS PETROLEUM S.A. | 76,6 | Combustibles |
+| `biomax` | 2 errores | 60,8 | |
+
+Éxito sigue siendo por PDF (`C:\Users\Lenovo\Downloads\exito 2024.pdf` y `exito 2025.pdf`).
+
+### 1c. Mejoras apuntadas, no hechas
+
+- **Buscar por marca**: un diccionario pequeño (Ara → Jerónimo Martins, Texaco →
+  Primax) para que la marca también encuentre.
+- **Streaming de la IA**: que el texto aparezca palabra a palabra; hoy tarda ~9 s
+  en bloque.
+- **Liquidez ponderada por ciclo de caja** en el puntaje (cruce §14, sospecha).
+- **Más sectores de benchmark**: solo existe el 4711. Para Primax/Zeuss haría
+  falta el CIIU de comercio de combustibles (4731).
+
+### 2. No hay nada pendiente de código
 
 Oscar pidió el 11-sep por la noche "no dejar nada pendiente" y se hizo todo:
 carga por NIT, arreglo de la IA, cinco indicadores, la calculadora de equilibrio
 y apalancamiento, el benchmark reconstruido con el diccionario corregido y el
-`.bat` de arranque. Todo con commit y push. Lo que sigue es **ensayar**.
+`.bat` de arranque. Todo con commit y push.
 
 ### 2. La carga por nombre/NIT: construida el 11-sep por la tarde
 
@@ -450,7 +483,7 @@ palpito/
 ├── docs/DESPLIEGUE.md   guía para Dokploy
 ├── FORMULAS.md          §8 los 6 errores del material del curso
 ├── PRODUCT.md · DESIGN.md
-├── CRUCES-VISTOS.md     13 cruces
+├── CRUCES-VISTOS.md     14 cruces
 └── .env                 🔴 la clave (NO se sube a git)
 ```
 
